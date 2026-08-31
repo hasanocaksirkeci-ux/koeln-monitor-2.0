@@ -13,6 +13,7 @@ import { fetchTomTomIncidents } from './tomtom-traffic.js';
 import { fetchCologneEmergencies, detectDistrict } from './cologne-emergencies.js';
 import { findStation, VERIFIED_STATIONS, getPreciseRouteBetween } from './stations-data.js';
 import { getRoutes } from './kvb-client.js';
+import { calculateDrivingRoute } from './tomtom-routing.js';
 
 function getGeminiApiKey() {
   return (process.env.GEMINI_API_KEY || '').trim();
@@ -62,13 +63,13 @@ function cleanStationString(str) {
 /**
  * Detects if the prompt or answer corresponds to a place, route, or emergency that can be drawn on the map
  */
-export function detectMapAction(prompt, answer = '') {
+export async function detectMapAction(prompt, answer = '') {
   const p = (prompt || '').trim();
   const routePoints = extractRoutePoints(p);
 
   // 1. Route queries
   if (routePoints) {
-    const preciseRoute = getPreciseRouteBetween(routePoints.from, routePoints.to);
+    const preciseRoute = await getPreciseRouteBetween(routePoints.from, routePoints.to);
     if (preciseRoute && preciseRoute.coordinates && preciseRoute.coordinates.length > 1) {
       const startTitle = preciseRoute.from.name || routePoints.from;
       const endTitle = preciseRoute.to.name || routePoints.to;
@@ -81,31 +82,39 @@ export function detectMapAction(prompt, answer = '') {
         lineColor: preciseRoute.color || '#00f0ff',
         start: [preciseRoute.from.lat, preciseRoute.from.lng],
         end: [preciseRoute.to.lat, preciseRoute.to.lng],
-        waypoints: preciseRoute.coordinates
+        waypoints: preciseRoute.coordinates,
+        geometrySource: preciseRoute.geometrySource || 'kvb-track'
       };
     }
 
+    // getPreciseRouteBetween only resolves known KVB stations. For broader
+    // queries (e.g. a Veedel/district name) that it can't match, fall back
+    // to findStation/detectDistrict, but still fetch REAL street geometry
+    // via TomTom instead of fabricating a curve - never invent a line.
     const startSt = findStation(routePoints.from) || detectDistrict(routePoints.from);
     const endSt = findStation(routePoints.to) || detectDistrict(routePoints.to);
 
     if (startSt && endSt && startSt.lat && endSt.lat) {
       const startTitle = startSt.name || startSt.short || routePoints.from;
       const endTitle = endSt.name || endSt.short || routePoints.to;
-      return {
-        type: 'route',
-        title: `Route: ${startTitle} ➔ ${endTitle}`,
-        fromName: startTitle,
-        toName: endTitle,
-        lineColor: '#00f0ff',
-        start: [startSt.lat, startSt.lng],
-        end: [endSt.lat, endSt.lng],
-        waypoints: [
-          [startSt.lat, startSt.lng],
-          [startSt.lat + (endSt.lat - startSt.lat) * 0.4, startSt.lng + (endSt.lng - startSt.lng) * 0.1],
-          [startSt.lat + (endSt.lat - startSt.lat) * 0.7, startSt.lng + (endSt.lng - startSt.lng) * 0.8],
-          [endSt.lat, endSt.lng]
-        ]
-      };
+      const tomtomRoute = await calculateDrivingRoute(startSt, endSt, 'pedestrian');
+
+      if (tomtomRoute && tomtomRoute.coordinates && tomtomRoute.coordinates.length > 1) {
+        return {
+          type: 'route',
+          title: `Route: ${startTitle} ➔ ${endTitle}`,
+          fromName: startTitle,
+          toName: endTitle,
+          lineColor: '#00f0ff',
+          start: [startSt.lat, startSt.lng],
+          end: [endSt.lat, endSt.lng],
+          waypoints: tomtomRoute.coordinates,
+          geometrySource: 'tomtom-approximate'
+        };
+      }
+      // No real geometry available (TomTom unconfigured/failed) - return
+      // no route action rather than a fabricated line; the caller/UI shows
+      // a visible "not available" state instead of a silent/fake result.
     }
   }
 
@@ -152,7 +161,7 @@ export async function queryCologneAI(userPrompt, options = {}) {
       const hafasResult = await getRoutes(routePoints.from, routePoints.to);
       if (hafasResult && hafasResult.routes && hafasResult.routes.length > 0) {
         const routeAnswer = formatHafasRouteAnswer(routePoints.from, routePoints.to, hafasResult.routes[0], context);
-        const mapAction = detectMapAction(userPrompt, routeAnswer);
+        const mapAction = await detectMapAction(userPrompt, routeAnswer);
         return {
           success: true,
           source: 'KVB HAFAS & Köln City Engine',
@@ -173,7 +182,7 @@ export async function queryCologneAI(userPrompt, options = {}) {
   if (apiKey && apiKey !== '') {
     try {
       const geminiAnswer = await fetchGeminiFlash(userPrompt, context, apiKey);
-      const mapAction = detectMapAction(userPrompt, geminiAnswer);
+      const mapAction = await detectMapAction(userPrompt, geminiAnswer);
       return {
         success: true,
         source: 'Google Gemini 3.6 Flash',
@@ -193,7 +202,7 @@ export async function queryCologneAI(userPrompt, options = {}) {
   const model = options.model || DEFAULT_MODEL;
   try {
     const aiAnswer = await fetchOllama(userPrompt, context, model);
-    const mapAction = detectMapAction(userPrompt, aiAnswer);
+    const mapAction = await detectMapAction(userPrompt, aiAnswer);
     return {
       success: true,
       source: 'local-llm',
@@ -206,8 +215,8 @@ export async function queryCologneAI(userPrompt, options = {}) {
     };
   } catch (err) {
     // 4. Heuristic Fallback
-    const heuristicAnswer = generateHeuristicAnswer(userPrompt, context);
-    const mapAction = detectMapAction(userPrompt, heuristicAnswer);
+    const heuristicAnswer = await generateHeuristicAnswer(userPrompt, context);
+    const mapAction = await detectMapAction(userPrompt, heuristicAnswer);
     return {
       success: true,
       source: 'cologne-city-engine',
@@ -440,13 +449,13 @@ async function buildLiveContext() {
   };
 }
 
-function generateHeuristicAnswer(prompt, context) {
+async function generateHeuristicAnswer(prompt, context) {
   const lower = prompt.toLowerCase();
 
   // 1. Route queries
   const routePoints = extractRoutePoints(prompt);
   if (routePoints) {
-    const preciseRoute = getPreciseRouteBetween(routePoints.from, routePoints.to);
+    const preciseRoute = await getPreciseRouteBetween(routePoints.from, routePoints.to);
     const startName = preciseRoute?.from?.name || routePoints.from;
     const endName = preciseRoute?.to?.name || routePoints.to;
     const lineInfo = preciseRoute?.lineName || 'Stadtbahn Direkt/Umstieg';

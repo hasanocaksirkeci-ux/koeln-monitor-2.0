@@ -1,4 +1,5 @@
 import { ICONS, getIcon } from './icons.js';
+import { renderSparkline, renderBarChart } from './charts.js';
 
 /**
  * Köln Live-Monitor: Vexto-Grade Mission Control Application Engine
@@ -87,6 +88,19 @@ const state = {
   analytics: null,
   savedRoutes: [],
 
+  // Routenplaner: 'kvb' (ÖPNV, unverändert) | 'car' | 'bicycle' | 'pedestrian' (TomTom)
+  routeMode: 'kvb',
+  // Real, from/to-sliced track geometry for the last calculated KVB route
+  // (set by calculateKvbRoute, consumed by appPlotCalculatedRoute)
+  lastRouteTrack: null,
+
+  // Rolling history for KPI sparklines (Design Rebuild Phase 1) - real
+  // values only, appended each time the corresponding source updates.
+  history: {
+    fleetCount: [],
+    punctuality: []
+  },
+
   // Favorites
   favorites: JSON.parse(localStorage.getItem('koeln_favs') || '[]'),
 
@@ -104,11 +118,14 @@ const state = {
     bikes: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Nextbike / KVB Rad' },
     analytics: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB Analytics Engine' },
     disruptions: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB Betriebslage' },
+    widgets: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Köln City-Widgets' },
     widgets_pegel: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'WSV PegelOnline' },
     widgets_parking: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Stadt Köln Open Data' },
     widgets_weather: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Open-Meteo' },
     traffic: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Traffic' },
-    traffic_config: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Config' }
+    traffic_config: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Config' },
+    routes: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB Routenplanung' },
+    routes_drive: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Routing' }
   }
 };
 
@@ -145,6 +162,56 @@ export function renderDataStatus(storeOrKey, fallbackLabel = '') {
       return `<span class="data-status-badge status-error" title="${escapeHtml(store.error || 'Fehler beim Laden')}"><span class="status-dot">⛔</span> FEHLER</span>`;
     default:
       return `<span class="data-status-badge status-unavailable">${escapeHtml(fallbackLabel || status)}</span>`;
+  }
+}
+
+// Appends a real value to a capped rolling history buffer used for KPI
+// sparklines (Design Rebuild Phase 1). Ignores non-numeric values instead
+// of pushing a fabricated 0/null placeholder into the chart.
+const HISTORY_MAX_POINTS = 24;
+function pushHistory(key, value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return;
+  const arr = state.history[key];
+  if (!arr) return;
+  arr.push(value);
+  if (arr.length > HISTORY_MAX_POINTS) arr.shift();
+}
+
+// Small helper: writes a rendered badge (or any HTML) into a designated
+// status-slot element without throwing if the slot isn't present in the
+// current DOM (e.g. a different active tab).
+function setSlotHtml(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+// Maps the nested per-field status vocabulary used inside the combined
+// /api/widgets payload (lowercase 'live'/'stale', e.g. state.widgets.pegel.status)
+// onto the same LIVE/STALE/UNAVAILABLE vocabulary the central dataStores /
+// renderDataStatus() badge system uses, so Pegel/Wetter/Parken get real badges
+// instead of a second, invisible status language (Schritt 4).
+export function syncWidgetSubStore(storeKey, fieldPayload, parentStore) {
+  const sub = state.dataStores[storeKey];
+  if (!sub) return;
+
+  if (!fieldPayload) {
+    sub.status = parentStore.status === 'ERROR' ? 'ERROR' : 'UNAVAILABLE';
+    sub.error = parentStore.error || 'Keine Daten empfangen';
+    return;
+  }
+
+  const fieldStatus = String(fieldPayload.status || '').toLowerCase();
+  if (fieldStatus === 'live') {
+    sub.status = 'LIVE';
+    sub.error = null;
+    sub.lastSuccessfulUpdate = parentStore.lastSuccessfulUpdate;
+  } else if (fieldStatus === 'stale') {
+    sub.status = 'STALE';
+    sub.error = fieldPayload.error || null;
+    sub.lastSuccessfulUpdate = sub.lastSuccessfulUpdate || parentStore.lastSuccessfulUpdate;
+  } else {
+    sub.status = 'UNAVAILABLE';
+    sub.error = fieldPayload.error || 'Quelle derzeit nicht verfügbar';
   }
 }
 
@@ -793,17 +860,26 @@ function initMapLayerFilters() {
   const layersBtn = document.getElementById('map-layers-btn');
   const layersMenu = document.getElementById('map-layers-menu');
 
+  const transitHudBarEl = document.getElementById('transit-hud-bar');
+
   if (layersBtn && layersMenu) {
     layersBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      const willShow = !layersMenu.classList.contains('show');
       layersMenu.classList.toggle('show');
       layersMenu.classList.toggle('open');
+      // Two independently-positioned floating overlays (this dropdown and
+      // the transit mode HUD) previously overlapped when both were visible.
+      // Hide the HUD bar for as long as the dropdown is open instead of
+      // fixed-pixel-fighting over the same vertical band.
+      if (transitHudBarEl) transitHudBarEl.classList.toggle('hidden-by-layers-menu', willShow);
     });
 
     layersMenu.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('click', () => {
       layersMenu.classList.remove('show');
       layersMenu.classList.remove('open');
+      if (transitHudBarEl) transitHudBarEl.classList.remove('hidden-by-layers-menu');
     });
   }
 
@@ -958,7 +1034,8 @@ function startRadarLoop() {
 
 async function fetchLiveRadar(force = false) {
   const store = await normalizeApiFetch('radar', '/api/radar', { force });
-  
+  setSlotHtml('radar-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE') {
     renderLiveVehicles(store.data?.vehicles || [], store);
   } else if (store.status === 'STALE') {
@@ -967,6 +1044,7 @@ async function fetchLiveRadar(force = false) {
   } else if (store.status === 'ERROR' || store.status === 'UNAVAILABLE') {
     if (state.vehiclesMap.size > 0) {
       store.status = 'STALE';
+      setSlotHtml('radar-status-badge', renderDataStatus(store));
       updateRadarTelemetryStale(store);
     } else {
       updateRadarTelemetryError(store);
@@ -978,7 +1056,7 @@ function updateRadarTelemetryStale(store) {
   const totalCount = state.vehiclesMap.size;
   const totalHeaderEl = document.getElementById('vehicle-count-header');
   if (totalHeaderEl) totalHeaderEl.textContent = totalCount > 0 ? `${totalCount}` : '--';
-  
+
   const countdownEl = document.getElementById('radar-countdown-text');
   if (countdownEl && store.lastSuccessfulUpdate) {
     countdownEl.title = `Verzögert: letztes Update ${formatTimeAgo(store.lastSuccessfulUpdate)}`;
@@ -1134,6 +1212,9 @@ function renderLiveVehicles(vehicles, store = null) {
   if (hudStadtbahnEl) hudStadtbahnEl.textContent = stadtbahnCount;
   const hudBusEl = document.getElementById('hud-bus-count');
   if (hudBusEl) hudBusEl.textContent = busCount;
+
+  pushHistory('fleetCount', totalCount);
+  renderSparkline(document.getElementById('fleet-sparkline'), state.history.fleetCount, { color: '#00f0ff' });
 
   // Update Left Sidebar Live Vehicle Feed
   updateVehicleStreamList();
@@ -1341,7 +1422,7 @@ function highlightLineTrack(target) {
 }
 
 function plotRouteTrackOnMap({ fromName, toName, coordinates, lineColor, startPoint, endPoint, lineName }) {
-  if (!state.map || !coordinates || coordinates.length < 2) return;
+  if (!state.map || !coordinates || coordinates.length < 2) return false;
 
   if (state.aiRouteLayer) {
     state.map.removeLayer(state.aiRouteLayer);
@@ -1400,6 +1481,7 @@ function plotRouteTrackOnMap({ fromName, toName, coordinates, lineColor, startPo
   }).addTo(state.map).bindPopup(`<b>Ziel:</b> ${escapeHtml(toName || 'Ziel')}${lineName ? `<br>${escapeHtml(lineName)}` : ''}`);
 
   state.map.fitBounds(core.getBounds(), { padding: [80, 80], maxZoom: 16 });
+  return true;
 }
 window.plotRouteTrackOnMap = plotRouteTrackOnMap;
 
@@ -1420,7 +1502,9 @@ function deg2rad(deg) { return deg * (Math.PI / 180); }
 // ==========================================================================
 async function loadEmergencies(force = false) {
   const store = await normalizeApiFetch('emergencies', '/api/emergencies', { force, freshnessWindow: 20000 });
-  
+  setSlotHtml('emergency-status-badge', renderDataStatus(store));
+  setSlotHtml('emergencies-panel-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.emergencies = store.data?.emergencies || [];
     const count = state.emergencies.length;
@@ -1560,7 +1644,8 @@ window.appOpenEmergency = function(id) {
 // ==========================================================================
 async function loadBikes(force = false) {
   const store = await normalizeApiFetch('bikes', '/api/bikes', { force, freshnessWindow: 20000 });
-  
+  setSlotHtml('bikes-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.bikesData = store.data;
 
@@ -1667,7 +1752,9 @@ window.appFlyToBike = function(lat, lng) {
 // ==========================================================================
 async function loadAnalytics(force = false) {
   const store = await normalizeApiFetch('analytics', '/api/analytics', { force, freshnessWindow: 30000 });
-  
+  setSlotHtml('header-punctuality-status-badge', renderDataStatus(store));
+  setSlotHtml('analytics-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.analytics = store.data;
 
@@ -1683,6 +1770,11 @@ async function loadAnalytics(force = false) {
 
     const headerPunct = document.getElementById('header-punctuality-val');
     if (headerPunct) headerPunct.textContent = score !== null ? `${score.toFixed(1)}%` : '--';
+
+    if (score !== null) {
+      pushHistory('punctuality', score);
+      renderSparkline(document.getElementById('punctuality-sparkline'), state.history.punctuality, { color: '#10b981' });
+    }
     
     const scoreVal = document.getElementById('an-score-val');
     if (scoreVal) scoreVal.textContent = score !== null ? `${score.toFixed(1)}%` : 'Keine Daten';
@@ -1708,6 +1800,8 @@ async function loadAnalytics(force = false) {
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-rose">Analytics derzeit nicht verfügbar</td></tr>`;
     }
+    const chartEl = document.getElementById('analytics-line-chart');
+    if (chartEl) chartEl.innerHTML = '<div class="chart-empty-note">Analytics derzeit nicht verfügbar</div>';
   }
 }
 
@@ -1716,6 +1810,18 @@ function renderAnalyticsLines() {
   if (!tbody || !state.analytics) return;
 
   const lines = state.analytics.linePerformance || [];
+
+  const chartEl = document.getElementById('analytics-line-chart');
+  renderBarChart(
+    chartEl,
+    lines.map(l => ({
+      label: `L${l.line}`,
+      value: Math.round(l.punctuality),
+      color: l.punctuality >= 90 ? '#10b981' : '#f59e0b'
+    })),
+    { unit: '%' }
+  );
+
   if (lines.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">Keine Linien-Daten verfügbar</td></tr>`;
     return;
@@ -2116,6 +2222,8 @@ async function loadTomTomTraffic() {
 
   // Load Incident Points (Traffic Jams & Road Closures)
   const incStore = await normalizeApiFetch('traffic', '/api/traffic/incidents');
+  setSlotHtml('traffic-status-badge', renderDataStatus(incStore));
+
   if (incStore.status === 'LIVE' || incStore.status === 'STALE') {
     renderTomTomIncidents(incStore.data?.incidents || []);
   } else if (incStore.status === 'UNAVAILABLE') {
@@ -2223,6 +2331,8 @@ async function fetchDrawerDepartures(stopId) {
   `;
 
   const store = await normalizeApiFetch('departures', `/api/departures?stopId=${encodeURIComponent(stopId)}`);
+  setSlotHtml('departures-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.departures = store.data?.departures || [];
     renderDrawerDepartures();
@@ -2329,6 +2439,8 @@ async function fetchDepartures(stopId, force = false) {
   `;
 
   const store = await normalizeApiFetch('departures', `/api/departures?stopId=${encodeURIComponent(stopId)}`, { force, freshnessWindow: 10000 });
+  setSlotHtml('departures-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.departures = store.data?.departures || [];
     renderDeparturesTable();
@@ -2511,6 +2623,14 @@ function initRoutePlanner() {
     });
   });
 
+  document.querySelectorAll('[data-route-mode]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('[data-route-mode]').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      state.routeMode = e.currentTarget.getAttribute('data-route-mode');
+    });
+  });
+
   if (calcBtn) {
     calcBtn.addEventListener('click', () => {
       const from = fromInput.value.trim();
@@ -2521,6 +2641,13 @@ function initRoutePlanner() {
 }
 
 async function calculateRoute(from, to) {
+  if (state.routeMode === 'kvb') {
+    return calculateKvbRoute(from, to);
+  }
+  return calculateDriveRoute(from, to, state.routeMode);
+}
+
+async function calculateKvbRoute(from, to) {
   const container = document.getElementById('route-results-container');
   const listEl = document.getElementById('route-cards-list');
   container.style.display = 'block';
@@ -2533,8 +2660,14 @@ async function calculateRoute(from, to) {
   `;
 
   const store = await normalizeApiFetch('routes', `/api/routes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  setSlotHtml('routes-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     const routes = store.data?.routes || [];
+    // Real, from/to-sliced track geometry from the server (or null) -
+    // "Trasse auf Karte zeichnen" uses this instead of guessing at a line
+    // track on the frontend.
+    state.lastRouteTrack = store.data?.trackGeometry || null;
 
     if (routes.length === 0) {
       listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Verbindung gefunden.</div>`;
@@ -2569,33 +2702,113 @@ async function calculateRoute(from, to) {
   }
 }
 
+const ROUTE_MODE_LABELS = { car: 'Auto', bicycle: 'Rad', pedestrian: 'Fuß' };
+
+async function calculateDriveRoute(from, to, mode) {
+  const container = document.getElementById('route-results-container');
+  const listEl = document.getElementById('route-cards-list');
+  container.style.display = 'block';
+
+  const modeLabel = ROUTE_MODE_LABELS[mode] || mode;
+  listEl.innerHTML = `
+    <div class="glass-panel text-center py-6">
+      <div class="spinner"></div>
+      <div class="mt-2 text-muted">Berechne ${modeLabel}-Route von "${escapeHtml(from)}" nach "${escapeHtml(to)}"...</div>
+    </div>
+  `;
+
+  const store = await normalizeApiFetch('routes_drive', `/api/routes/drive?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&mode=${encodeURIComponent(mode)}`);
+  setSlotHtml('routes-status-badge', renderDataStatus(store));
+
+  if ((store.status === 'LIVE' || store.status === 'STALE') && store.data?.status === 'ok') {
+    const r = store.data;
+    const km = typeof r.distanceMeters === 'number' ? (r.distanceMeters / 1000).toFixed(1) : '--';
+    const mins = typeof r.durationSeconds === 'number' ? Math.round(r.durationSeconds / 60) : '--';
+    const routeEncoded = encodeURIComponent(JSON.stringify({ coordinates: r.coordinates }));
+
+    listEl.innerHTML = `
+      <div class="glass-panel p-4 mb-3">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="mono" style="font-weight:800; font-size:1.1rem;">${km} km</span>
+          <span class="dock-badge-alert" style="background:var(--vexto-emerald); color:#000;">
+            ${mins} Min. (${modeLabel})
+          </span>
+        </div>
+        <div class="mt-3" style="display:flex; justify-content:flex-end;">
+          <button class="action-btn primary small" onclick="window.appPlotDriveRoute('${escapeHtml(from)}', '${escapeHtml(to)}', '${routeEncoded}')">
+            Trasse auf Karte zeichnen ➔
+          </button>
+        </div>
+      </div>
+    `;
+  } else {
+    const errMsg = store.data?.error || store.error || 'Route nicht berechenbar';
+    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-rose">⛔ ${escapeHtml(errMsg)}</div>`;
+  }
+}
+
+window.appPlotDriveRoute = function(fromName, toName, routeJsonStr) {
+  const warnEl = document.getElementById('route-plot-warning');
+  if (warnEl) warnEl.style.display = 'none';
+
+  try {
+    const { coordinates } = JSON.parse(decodeURIComponent(routeJsonStr));
+    if (coordinates && coordinates.length > 1) {
+      plotRouteTrackOnMap({ fromName, toName, coordinates, lineColor: '#f59e0b' });
+    } else if (warnEl) {
+      warnEl.textContent = '⚠ Route kann derzeit nicht auf der Karte dargestellt werden (keine Streckengeometrie gefunden).';
+      warnEl.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('Error plotting drive route:', err);
+    if (warnEl) {
+      warnEl.textContent = '⚠ Route kann derzeit nicht auf der Karte dargestellt werden (Fehler beim Verarbeiten der Verbindung).';
+      warnEl.style.display = 'block';
+    }
+  }
+};
+
 window.appPlotCalculatedRoute = function(fromName, toName, routeJsonStr) {
+  const warnEl = document.getElementById('route-plot-warning');
+  const showWarning = (msg) => {
+    if (warnEl) {
+      warnEl.textContent = msg;
+      warnEl.style.display = 'block';
+    }
+  };
+  if (warnEl) warnEl.style.display = 'none';
+
   try {
     const route = JSON.parse(decodeURIComponent(routeJsonStr));
+    // Real, from/to-sliced geometry computed server-side (getPreciseRouteBetween).
+    // Previously this looked up the matched line's ENTIRE track by number
+    // (state.lineTracks.find(...)) with no slicing at all - clicking
+    // "Trasse auf Karte zeichnen" for Florastr. -> Neumarkt drew all of
+    // Linie 1 end-to-end (Leverkusen to Zollstock) instead of just that
+    // segment. A straight 2-point line was also drawn as a fallback before -
+    // removed too, since a fabricated straight line is exactly as
+    // misleading as the old curve, just less obviously so.
+    const track = state.lastRouteTrack;
     const transitLeg = route.legs?.find(l => !l.walking && l.line);
-    const lineNum = transitLeg ? String(transitLeg.line) : null;
-    const lineTrack = lineNum ? state.lineTracks.find(t => t.line === lineNum) : null;
+    const lineNum = transitLeg ? String(transitLeg.line) : (track?.line ? String(track.line) : null);
 
-    let coords = lineTrack?.coordinates || [];
-    if (coords.length < 2) {
-      const fromSt = state.verifiedStations.find(s => s.name.toLowerCase().includes(fromName.toLowerCase()));
-      const toSt = state.verifiedStations.find(s => s.name.toLowerCase().includes(toName.toLowerCase()));
-      if (fromSt && toSt) {
-        coords = [[fromSt.lat, fromSt.lng], [toSt.lat, toSt.lng]];
-      }
-    }
-
-    if (coords.length > 1) {
+    if (track && track.coordinates && track.coordinates.length > 1) {
       plotRouteTrackOnMap({
         fromName,
         toName,
-        coordinates: coords,
-        lineColor: lineTrack?.color || '#00f0ff',
+        coordinates: track.coordinates,
+        lineColor: track.color || '#00f0ff',
         lineName: lineNum ? `Linie ${lineNum}` : null
       });
+    } else {
+      // Was previously a silent no-op: user clicked "auf Karte zeichnen" and
+      // nothing visibly happened. Now shows a visible state instead of
+      // drawing something wrong or fabricated.
+      showWarning('⚠ Route kann derzeit nicht auf der Karte dargestellt werden (keine Streckengeometrie gefunden).');
     }
   } catch (err) {
     console.error('Error plotting route:', err);
+    showWarning('⚠ Route kann derzeit nicht auf der Karte dargestellt werden (Fehler beim Verarbeiten der Verbindung).');
   }
 };
 
@@ -2652,7 +2865,8 @@ function initDisruptionsView() {
 
 async function loadDisruptions(force = false) {
   const store = await normalizeApiFetch('disruptions', '/api/disruptions', { force, freshnessWindow: 20000 });
-  
+  setSlotHtml('disruptions-status-badge', renderDataStatus(store));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.disruptions = store.data;
 
@@ -2850,12 +3064,26 @@ window.appOpenDisruption = function(lineId) {
 // ==========================================================================
 async function loadWidgets(force = false) {
   const store = await normalizeApiFetch('widgets', '/api/widgets', { force, freshnessWindow: 30000 });
-  
+
+  const p = store.data?.pegel;
+  const w = store.data?.weather;
+  const pk = store.data?.parking;
+
+  // Keep the per-field sub-stores (widgets_pegel/widgets_weather/widgets_parking)
+  // in sync with the combined payload so each widget gets its own LIVE/STALE/
+  // UNAVAILABLE/ERROR badge instead of collapsing into the parent's status.
+  syncWidgetSubStore('widgets_pegel', p, store);
+  syncWidgetSubStore('widgets_weather', w, store);
+  syncWidgetSubStore('widgets_parking', pk, store);
+
+  setSlotHtml('pegel-status-badge', renderDataStatus('widgets_pegel'));
+  setSlotHtml('weather-status-badge', renderDataStatus('widgets_weather'));
+  setSlotHtml('parking-status-badge', renderDataStatus('widgets_parking'));
+
   if (store.status === 'LIVE' || store.status === 'STALE') {
     state.widgets = store.data;
 
     // 1. Pegel
-    const p = state.widgets?.pegel;
     const pegelValEl = document.getElementById('pegel-cm-val');
     const headerPegel = document.getElementById('header-pegel-val');
     const pegelTrendBadge = document.getElementById('pegel-trend-badge');
@@ -2872,7 +3100,6 @@ async function loadWidgets(force = false) {
     }
 
     // 2. Weather
-    const w = state.widgets?.weather;
     const tempValEl = document.getElementById('weather-temp-val');
     const headerW = document.getElementById('header-weather-val');
     const condEl = document.getElementById('weather-cond-text');
@@ -2889,7 +3116,6 @@ async function loadWidgets(force = false) {
     }
 
     // 3. Parking
-    const pk = state.widgets?.parking;
     const freeEl = document.getElementById('parking-total-free');
     if (pk && (pk.status === 'live' || pk.status === 'stale') && typeof pk.totalFree === 'number') {
       if (freeEl) freeEl.textContent = pk.totalFree.toLocaleString('de-DE');
@@ -3009,7 +3235,18 @@ function appendChatMessage(role, text, mapAction = null) {
 }
 
 window.appExecuteMapAction = function(action) {
-  executeMapAction(action);
+  const ok = executeMapAction(action);
+  if (!ok && action?.type === 'route') {
+    // Silent-failure fix (Schritt 4): the button click previously did
+    // nothing visible when geometry couldn't be resolved.
+    const warning = '⚠ Diese Route kann derzeit nicht auf der Karte dargestellt werden (keine Streckengeometrie gefunden).';
+    const floatingPanelOpen = document.getElementById('map-ai-panel')?.style.display === 'flex';
+    if (floatingPanelOpen) {
+      appendFloatingAiMessage('bot', warning);
+    } else {
+      appendChatMessage('assistant', warning);
+    }
+  }
 };
 
 function initMapFloatingAI() {
@@ -3072,7 +3309,12 @@ function initMapFloatingAI() {
 
       if (data && data.answer) {
         appendFloatingAiMessage('bot', data.answer, data.mapAction);
-        if (data.mapAction) executeMapAction(data.mapAction);
+        if (data.mapAction) {
+          const ok = executeMapAction(data.mapAction);
+          if (!ok && data.mapAction.type === 'route') {
+            appendFloatingAiMessage('bot', '⚠ Diese Route kann derzeit nicht auf der Karte dargestellt werden (keine Streckengeometrie gefunden).');
+          }
+        }
       } else {
         appendFloatingAiMessage('bot', 'Keine Antwort verfügbar.');
       }
@@ -3118,10 +3360,10 @@ function appendFloatingAiMessage(role, text, mapAction = null) {
 }
 
 function executeMapAction(action) {
-  if (!action || !state.map) return;
+  if (!action || !state.map) return false;
 
   if (action.type === 'route' && action.start && action.end) {
-    plotRouteTrackOnMap({
+    return plotRouteTrackOnMap({
       fromName: action.fromName || 'Start',
       toName: action.toName || 'Ziel',
       coordinates: action.waypoints || [action.start, action.end],
@@ -3133,7 +3375,9 @@ function executeMapAction(action) {
   } else if (action.type === 'focus' && action.lat && action.lng) {
     switchTab('map');
     state.map.flyTo([action.lat, action.lng], action.zoom || 16);
+    return true;
   }
+  return false;
 }
 
 // ==========================================================================

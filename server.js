@@ -9,12 +9,13 @@ import { readFileSync, existsSync } from 'fs';
 import { searchStations, getDepartures, getRoutes, getLiveRadar } from './tools/kvb-client.js';
 import { getDisruptions } from './tools/kvb-disruptions.js';
 import { getCologneWidgets } from './tools/cologne-widgets.js';
-import { getLineTracks, VERIFIED_STATIONS } from './tools/stations-data.js';
+import { getLineTracks, VERIFIED_STATIONS, findStation, getPreciseRouteBetween } from './tools/stations-data.js';
 import { fetchCologneEmergencies } from './tools/cologne-emergencies.js';
 import { fetchKvbBikes } from './tools/kvb-bikes.js';
 import { computeNetworkAnalytics } from './tools/analytics.js';
 import { getSavedRoutes, addSavedRoute, getEmergenciesFromDB } from './tools/db.js';
 import { getTomTomTrafficConfig, fetchTomTomIncidents } from './tools/tomtom-traffic.js';
+import { geocodePlace, calculateDrivingRoute } from './tools/tomtom-routing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -240,11 +241,92 @@ app.get('/api/routes', async (req, res) => {
       return res.status(400).json({ error: 'Parameter from und to sind erforderlich' });
     }
     const cacheKey = `route_${from}_${to}`;
-    const data = await getCached(cacheKey, 20, () => getRoutes(from, to));
+    const data = await getCached(cacheKey, 20, async () => {
+      const [journeys, track] = await Promise.all([
+        getRoutes(from, to),
+        // Real, station-sliced geometry (or null if none exists) for the
+        // "Trasse auf Karte zeichnen" button - previously that button drew
+        // the ENTIRE line's track end-to-end instead of just the from/to
+        // segment, since it looked up the line by number with no slicing.
+        getPreciseRouteBetween(from, to).catch(() => null)
+      ]);
+      return {
+        ...journeys,
+        trackGeometry: track && track.coordinates && track.coordinates.length > 1 ? {
+          coordinates: track.coordinates,
+          line: track.line || null,
+          color: track.color || null,
+          geometrySource: track.geometrySource || 'kvb-track'
+        } : null
+      };
+    });
     res.json(data);
   } catch (err) {
     console.error('Error in /api/routes:', err.message);
     res.status(500).json({ error: err.message, routes: [] });
+  }
+});
+
+/**
+ * GET /api/routes/drive?from=...&to=...&mode=car|bicycle|pedestrian
+ * Auto/Rad/Fußgänger-Routenplaner ("Von A nach B") via TomTom Routing.
+ * Resolves from/to against known KVB stations first, then falls back to
+ * TomTom Geocoding for free-text addresses. Never fabricates geometry -
+ * an unresolved point or failed routing call returns an explicit
+ * unavailable/error status instead of a fake line.
+ */
+app.get('/api/routes/drive', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const mode = ['car', 'bicycle', 'pedestrian'].includes(req.query.mode) ? req.query.mode : 'car';
+    if (!from || !to) {
+      return res.status(400).json({ error: 'Parameter from und to sind erforderlich' });
+    }
+
+    const cacheKey = `route_drive_${mode}_${from}_${to}`;
+    const data = await getCached(cacheKey, 30, async () => {
+      const resolvePoint = async (query) => {
+        const station = findStation(query);
+        if (station) return { lat: station.lat, lng: station.lng, label: station.name || station.short };
+        return geocodePlace(query);
+      };
+
+      const [fromPoint, toPoint] = await Promise.all([resolvePoint(from), resolvePoint(to)]);
+      if (!fromPoint || !toPoint) {
+        return {
+          status: 'error',
+          error: !fromPoint && !toPoint
+            ? `Start "${from}" und Ziel "${to}" konnten nicht gefunden werden`
+            : (!fromPoint ? `Start "${from}" konnte nicht gefunden werden` : `Ziel "${to}" konnte nicht gefunden werden`),
+          coordinates: []
+        };
+      }
+
+      const route = await calculateDrivingRoute(fromPoint, toPoint, mode);
+      if (!route || route.status === 'unconfigured') {
+        return { status: 'unconfigured', configured: false, error: 'TomTom API-Key nicht konfiguriert', coordinates: [] };
+      }
+      if (!route.coordinates || route.coordinates.length < 2) {
+        return { status: 'error', error: route.error || 'Keine Streckengeometrie gefunden', coordinates: [] };
+      }
+
+      return {
+        status: 'ok',
+        mode,
+        from: fromPoint,
+        to: toPoint,
+        coordinates: route.coordinates,
+        distanceMeters: route.distanceMeters,
+        durationSeconds: route.durationSeconds,
+        source: 'tomtom-routing',
+        timestamp: new Date().toISOString()
+      };
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error('Error in /api/routes/drive:', err.message);
+    res.status(500).json({ error: err.message, coordinates: [] });
   }
 });
 
