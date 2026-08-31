@@ -50,18 +50,41 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 
-// Simple in-memory cache
+// Resilient in-memory cache with Thundering-Herd Promise Sharing
 const cache = new Map();
 function getCached(key, ttlSeconds, fetcher) {
   const cached = cache.get(key);
   const now = Date.now();
-  if (cached && (now - cached.timestamp < ttlSeconds * 1000)) {
+  if (cached && cached.data !== undefined && (now - cached.timestamp < ttlSeconds * 1000)) {
     return Promise.resolve(cached.data);
   }
-  return fetcher().then(data => {
-    cache.set(key, { timestamp: now, data });
-    return data;
+  // If an upstream request is already in-flight for this key, reuse the existing promise
+  if (cached && cached.promise) {
+    return cached.promise;
+  }
+
+  const promise = (async () => {
+    try {
+      const data = await fetcher();
+      cache.set(key, { timestamp: Date.now(), data, promise: null });
+      return data;
+    } catch (err) {
+      if (cached && cached.data !== undefined) {
+        cache.set(key, { timestamp: cached.timestamp, data: cached.data, promise: null });
+      } else {
+        cache.delete(key);
+      }
+      throw err;
+    }
+  })();
+
+  cache.set(key, {
+    timestamp: cached?.timestamp || 0,
+    data: cached?.data,
+    promise
   });
+
+  return promise;
 }
 
 // ----------------------------------------------------

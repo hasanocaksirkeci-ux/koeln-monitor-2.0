@@ -85,9 +85,25 @@ db.exec(`
 `);
 
 /**
- * Save Transit Stations to SQLite
+ * Execute a batch operation inside an atomic SQLite transaction
+ */
+export function runInTransaction(fn) {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+/**
+ * Save Transit Stations to SQLite (Batch Transaction)
  */
 export function saveTransitStations(stations) {
+  if (!Array.isArray(stations) || stations.length === 0) return;
   const stmt = db.prepare(`
     INSERT INTO transit_stations (id, name, short, lat, lng, is_underground, lines_json, district)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -102,18 +118,20 @@ export function saveTransitStations(stations) {
       updated_at = CURRENT_TIMESTAMP
   `);
 
-  for (const s of stations) {
-    stmt.run(
-      s.id,
-      s.name,
-      s.short || s.name,
-      s.lat,
-      s.lng,
-      s.isUnderground ? 1 : 0,
-      JSON.stringify(s.lines || []),
-      s.district || ''
-    );
-  }
+  runInTransaction(() => {
+    for (const s of stations) {
+      stmt.run(
+        s.id,
+        s.name,
+        s.short || s.name,
+        s.lat,
+        s.lng,
+        s.isUnderground ? 1 : 0,
+        JSON.stringify(s.lines || []),
+        s.district || ''
+      );
+    }
+  });
 }
 
 /**
@@ -134,9 +152,10 @@ export function getTransitStationsFromDB() {
 }
 
 /**
- * Save Transit Tracks to SQLite
+ * Save Transit Tracks to SQLite (Batch Transaction)
  */
 export function saveTransitTracks(tracks) {
+  if (!Array.isArray(tracks) || tracks.length === 0) return;
   const stmt = db.prepare(`
     INSERT INTO transit_tracks (line, name, color, route_type, is_tunnel, is_bridge, geometry_json, stops_json)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -149,18 +168,20 @@ export function saveTransitTracks(tracks) {
       updated_at = CURRENT_TIMESTAMP
   `);
 
-  for (const t of tracks) {
-    stmt.run(
-      t.line,
-      t.name,
-      t.color,
-      t.routeType || 'stadtbahn',
-      t.isTunnel ? 1 : 0,
-      t.isBridge ? 1 : 0,
-      JSON.stringify(t.segments || t.coordinates || []),
-      JSON.stringify(t.stops || [])
-    );
-  }
+  runInTransaction(() => {
+    for (const t of tracks) {
+      stmt.run(
+        t.line,
+        t.name,
+        t.color,
+        t.routeType || 'stadtbahn',
+        t.isTunnel ? 1 : 0,
+        t.isBridge ? 1 : 0,
+        JSON.stringify(t.segments || t.coordinates || []),
+        JSON.stringify(t.stops || [])
+      );
+    }
+  });
 }
 
 /**
@@ -184,9 +205,10 @@ export function getTransitTracksFromDB() {
 }
 
 /**
- * Upsert emergencies into the database
+ * Upsert emergencies into the database (Batch Transaction)
  */
 export function saveEmergencies(emergencies) {
+  if (!Array.isArray(emergencies) || emergencies.length === 0) return;
   const stmt = db.prepare(`
     INSERT INTO emergencies (id, source, category, title, district, lat, lng, pub_date, description, link, is_critical)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -199,21 +221,23 @@ export function saveEmergencies(emergencies) {
       is_critical = excluded.is_critical
   `);
 
-  for (const item of emergencies) {
-    stmt.run(
-      item.id,
-      item.source,
-      item.category,
-      item.title,
-      item.district,
-      item.lat,
-      item.lng,
-      item.pubDate,
-      item.description,
-      item.link,
-      item.isCritical ? 1 : 0
-    );
-  }
+  runInTransaction(() => {
+    for (const item of emergencies) {
+      stmt.run(
+        item.id,
+        item.source,
+        item.category,
+        item.title,
+        item.district,
+        item.lat,
+        item.lng,
+        item.pubDate,
+        item.description,
+        item.link,
+        item.isCritical ? 1 : 0
+      );
+    }
+  });
 }
 
 /**
@@ -259,37 +283,42 @@ export function getEmergenciesFromDB({ limit = 50, district = null, category = n
 }
 
 /**
- * Record a punctuality snapshot
+ * Record a punctuality snapshot (Atomic Transaction)
  */
 export function savePunctualitySnapshot(snapshot) {
   const stmt = db.prepare(`
     INSERT INTO punctuality_snapshots (timestamp, punctuality_score, total_tracked, on_time_count, delayed_count, average_delay)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
-  stmt.run(
-    snapshot.timestamp,
-    snapshot.punctualityScore,
-    snapshot.totalTracked,
-    snapshot.onTimeCount,
-    snapshot.delayedCount,
-    snapshot.averageDelayMinutes
-  );
 
-  if (snapshot.linePerformance && Array.isArray(snapshot.linePerformance)) {
-    const lineStmt = db.prepare(`
-      INSERT INTO line_metrics (line, punctuality, active_vehicles, average_delay, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(line) DO UPDATE SET
-        punctuality = excluded.punctuality,
-        active_vehicles = excluded.active_vehicles,
-        average_delay = excluded.average_delay,
-        updated_at = excluded.updated_at
-    `);
+  const lineStmt = snapshot.linePerformance && Array.isArray(snapshot.linePerformance)
+    ? db.prepare(`
+        INSERT INTO line_metrics (line, punctuality, active_vehicles, average_delay, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(line) DO UPDATE SET
+          punctuality = excluded.punctuality,
+          active_vehicles = excluded.active_vehicles,
+          average_delay = excluded.average_delay,
+          updated_at = excluded.updated_at
+      `)
+    : null;
 
-    for (const lp of snapshot.linePerformance) {
-      lineStmt.run(lp.line, lp.punctuality, lp.activeVehicles, lp.averageDelay, snapshot.timestamp);
+  runInTransaction(() => {
+    stmt.run(
+      snapshot.timestamp,
+      snapshot.punctualityScore,
+      snapshot.totalTracked,
+      snapshot.onTimeCount,
+      snapshot.delayedCount,
+      snapshot.averageDelayMinutes
+    );
+
+    if (lineStmt) {
+      for (const lp of snapshot.linePerformance) {
+        lineStmt.run(lp.line, lp.punctuality, lp.activeVehicles, lp.averageDelay, snapshot.timestamp);
+      }
     }
-  }
+  });
 }
 
 /**
