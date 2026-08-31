@@ -593,9 +593,22 @@ function switchTab(tabId) {
 
   // The background map recedes into ambient chrome only on the curated
   // Home welcome screen - everywhere else (including Radar) it stays the
-  // full operational view it already was.
+  // full operational view it already was. On desktop this also shrinks
+  // the map to a small preview card and widens the sidebar into an
+  // actual multi-column dashboard (see .home-expanded in style.css) -
+  // the two classes are always toggled together.
   const mapStageEl = document.querySelector('.map-stage');
-  if (mapStageEl) mapStageEl.classList.toggle('home-dimmed', tabId === 'home');
+  const sidebarEl = document.querySelector('.dashboard-sidebar');
+  const isHome = tabId === 'home';
+  if (mapStageEl) mapStageEl.classList.toggle('home-dimmed', isHome);
+  if (sidebarEl) sidebarEl.classList.toggle('home-expanded', isHome);
+
+  // The map's actual pixel box changes size when entering/leaving Home
+  // (not just a CSS filter), so Leaflet needs to re-measure once the
+  // resize transition finishes or its tiles stay cropped to the old box.
+  if (state.map) {
+    setTimeout(() => state.map.invalidateSize(), 320);
+  }
 
   if (tabId === 'map' && state.map) {
     setTimeout(() => {
@@ -3172,6 +3185,35 @@ function initHomeView() {
   }
 }
 
+// Home tab: fills the space next to the map preview / weather pill with
+// real, already-loaded Betriebslage data instead of leaving it empty -
+// no extra fetch, `lines` is the same array loadDisruptions() already has.
+function renderHomeDisruptionsSummary(lines) {
+  const badgeEl = document.getElementById('home-disruptions-status-badge');
+  const listEl = document.getElementById('home-disruptions-list');
+  if (!listEl) return;
+
+  if (badgeEl) setSlotHtml('home-disruptions-status-badge', renderDataStatus('disruptions'));
+
+  if (!lines) {
+    listEl.innerHTML = `<div class="text-muted" style="font-size:0.75rem;">Betriebslage derzeit nicht verfügbar.</div>`;
+    return;
+  }
+
+  const affected = lines.filter(l => l.status && l.status !== 'green');
+  if (affected.length === 0) {
+    listEl.innerHTML = `<div class="text-muted" style="font-size:0.8rem;">Alle Linien fahren planmäßig.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = affected.slice(0, 6).map(l => `
+    <div style="display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0; border-bottom:1px solid var(--border-subtle);">
+      <span class="line-badge" style="background:${l.lineColor || (l.status === 'red' ? '#f43f5e' : '#f59e0b')}; color:${l.lineTextColor || '#05070a'};">${escapeHtml(String(l.id))}</span>
+      <span style="font-size:0.75rem; color:var(--text-secondary);">${l.status === 'red' ? 'Störung' : 'Beeinträchtigt'}${l.hasSEV ? ' · Ersatzverkehr' : ''}</span>
+    </div>
+  `).join('');
+}
+
 async function loadDisruptions(force = false) {
   const store = await normalizeApiFetch('disruptions', '/api/disruptions', { force, freshnessWindow: 20000 });
   setSlotHtml('disruptions-status-badge', renderDataStatus(store));
@@ -3214,7 +3256,9 @@ async function loadDisruptions(force = false) {
     }
 
     renderDisruptionsGrid();
+    renderHomeDisruptionsSummary(lines);
   } else {
+    renderHomeDisruptionsSummary(null);
     const sbNormalEl = document.getElementById('disrupt-sb-normal');
     if (sbNormalEl) sbNormalEl.textContent = '--';
     const totalAlertsEl = document.getElementById('disrupt-total-alerts');
@@ -3371,6 +3415,28 @@ window.appOpenDisruption = function(lineId) {
 // ==========================================================================
 // 17. Cologne Widgets (Tab 8)
 // ==========================================================================
+// Home tab's compact weather card, fed from the same real weather field
+// the Widgets tab already displays (state.dataStores.widgets_weather /
+// w) - no separate fetch, just a second render target.
+function updateHomeWeatherCard(w) {
+  const iconEl = document.getElementById('home-weather-icon');
+  const tempEl = document.getElementById('home-weather-temp');
+  const condEl = document.getElementById('home-weather-cond');
+  if (!iconEl || !tempEl || !condEl) return;
+
+  if (w && typeof w.temp === 'number') {
+    iconEl.textContent = w.icon || '🌤️';
+    tempEl.textContent = `${Math.round(w.temp)}°C`;
+    condEl.textContent = w.condition
+      ? `Köln · ${w.condition}${typeof w.rainProbNow === 'number' ? ` · ${w.rainProbNow}% Regen` : ''}`
+      : 'Köln';
+  } else {
+    iconEl.textContent = '--';
+    tempEl.textContent = '--°C';
+    condEl.textContent = 'Wetter derzeit nicht verfügbar';
+  }
+}
+
 async function loadWidgets(force = false) {
   const store = await normalizeApiFetch('widgets', '/api/widgets', { force, freshnessWindow: 30000 });
 
@@ -3418,10 +3484,12 @@ async function loadWidgets(force = false) {
       if (tempValEl) tempValEl.textContent = `${rounded}°C`;
       if (headerW) headerW.textContent = `${rounded}°C`;
       if (condEl) condEl.textContent = w.condition || 'Köln';
+      updateHomeWeatherCard(w);
     } else {
       if (tempValEl) tempValEl.textContent = '--';
       if (headerW) headerW.textContent = '--';
       if (condEl) condEl.textContent = 'Nicht verfügbar';
+      updateHomeWeatherCard(null);
     }
 
     // 3. Parking
@@ -3445,6 +3513,7 @@ async function loadWidgets(force = false) {
     if (tempValEl) tempValEl.textContent = '--';
     const headerW = document.getElementById('header-weather-val');
     if (headerW) headerW.textContent = '--';
+    updateHomeWeatherCard(null);
 
     const freeEl = document.getElementById('parking-total-free');
     if (freeEl) freeEl.textContent = '--';

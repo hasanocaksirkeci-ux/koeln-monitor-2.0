@@ -5,7 +5,11 @@
 
 :root {
   /* Surface Color Palette */
-  --bg-canvas: #07090e;
+  /* Neutral dark gray, not navy - matches the actual Esri "World Dark
+     Gray" basemap tone (see BASEMAPS.dark in app.js) so any area where
+     no map tiles are visible (e.g. the Home tab's widened dashboard)
+     reads as the same gray-glass material instead of a colder blue void. */
+  --bg-canvas: #161616;
   --bg-sidebar: #0c0f17;
   --bg-surface: #121622;
   --bg-surface-elevated: #181e2e;
@@ -437,6 +441,35 @@ button svg { pointer-events: none; }
   flex-direction: column;
   z-index: 900;
   overflow: hidden;
+  transition: width var(--transition-smooth);
+}
+
+/* Home tab: the sidebar becomes the actual dashboard instead of a narrow
+   list next to a full-bleed map - it widens into the space the map gives
+   up when it shrinks to a preview card (see .map-stage.home-dimmed). */
+@media (min-width: 901px) {
+  .dashboard-sidebar.home-expanded {
+    width: calc(100% - 420px - 48px);
+  }
+
+  /* Reflows the same 4 existing blocks (no HTML change) into a real
+     multi-column dashboard instead of one stacked column stretched wide. */
+  .dashboard-sidebar.home-expanded #sidebar-feed-home {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    grid-template-areas:
+      "search search"
+      "header header"
+      "hero more";
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .dashboard-sidebar.home-expanded .home-hero-search { grid-area: search; margin: 0; }
+  .dashboard-sidebar.home-expanded .home-section-header { grid-area: header; margin: 0; }
+  .dashboard-sidebar.home-expanded #home-events-hero { grid-area: hero; margin: 0; }
+  .dashboard-sidebar.home-expanded #home-events-more { grid-area: more; margin: 0; }
+  .dashboard-sidebar.home-expanded .home-event-hero { min-height: 220px; }
 }
 
 .sidebar-header {
@@ -1213,16 +1246,118 @@ button svg { pointer-events: none; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #05070a;
+  background: #161616;
   filter: none;
-  transition: filter var(--transition-smooth), opacity var(--transition-smooth);
+  transition: filter var(--transition-smooth), top var(--transition-smooth),
+    right var(--transition-smooth), bottom var(--transition-smooth),
+    left var(--transition-smooth), width var(--transition-smooth),
+    height var(--transition-smooth), border-radius var(--transition-smooth);
 }
 
 /* Home tab is a curated welcome screen, not the operations cockpit - the
-   live traffic map recedes into ambient background chrome instead of
-   competing with it for attention. */
+   live traffic map recedes into ambient chrome instead of competing with
+   it for attention: dimmed everywhere, and on desktop shrunk down to a
+   small preview card so the dashboard itself can actually widen into the
+   freed-up space (see .dashboard-sidebar.home-expanded below). */
 .map-stage.home-dimmed {
   filter: saturate(55%) brightness(55%) blur(1.5px);
+}
+
+@media (min-width: 901px) {
+  .map-stage.home-dimmed {
+    inset: auto;
+    top: 96px;
+    right: 16px;
+    left: auto;
+    bottom: auto;
+    width: 420px;
+    height: 220px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg), var(--inner-bevel);
+    border: 1px solid var(--border-medium);
+    z-index: 901;
+  }
+}
+
+/* On the small preview card, map controls (layers, transit HUD, AI
+   floating button, zoom) have nothing sensible to control - it's a
+   glance, not the operations view. Same sibling-selector pattern already
+   used for the mobile-open drawer state. */
+.dashboard-sidebar.home-expanded ~ .map-stage .map-floating-ribbon,
+.dashboard-sidebar.home-expanded ~ .map-stage .transit-hud-bar,
+.dashboard-sidebar.home-expanded ~ .map-stage .map-ai-trigger-btn,
+.dashboard-sidebar.home-expanded ~ .map-stage .cockpit-hud,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-zoom,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-attribution {
+  display: none;
+}
+
+/* Home tab only: compact weather pill fixed under the map preview card
+   (same right-hand column, not part of the scrolling sidebar content).
+   Deliberately small - a single number doesn't need a full-height card. */
+.home-weather-card {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+}
+
+@media (min-width: 901px) {
+  .dashboard-sidebar.home-expanded ~ .home-weather-card {
+    display: flex;
+    position: fixed;
+    top: calc(96px + 220px + 12px);
+    right: 16px;
+    width: 420px;
+    height: 56px;
+    background: var(--bg-glass-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg), var(--inner-bevel);
+    z-index: 901;
+  }
+
+  .dashboard-sidebar.home-expanded ~ .home-disruptions-card {
+    display: flex;
+    position: fixed;
+    top: calc(96px + 220px + 12px + 56px + 12px);
+    right: 16px;
+    bottom: 16px;
+    width: 420px;
+    background: var(--bg-glass-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg), var(--inner-bevel);
+    z-index: 901;
+  }
+}
+
+.home-weather-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.home-weather-temp {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.home-disruptions-card {
+  display: none;
+  flex-direction: column;
+  padding: 0.9rem;
+  overflow-y: auto;
+}
+
+.home-weather-cond {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .map-floating-ribbon {
@@ -1412,7 +1547,7 @@ button svg { pointer-events: none; }
 .map-element {
   width: 100%;
   height: 100%;
-  background: #05070a;
+  background: #161616;
 }
 
 /* ============================================== -->

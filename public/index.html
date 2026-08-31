@@ -781,6 +781,26 @@
 
     </main>
 
+    <!-- Home tab only (desktop): compact weather card under the shrunk
+         map preview - see .home-weather-card / #home-weather-card in app.js -->
+    <div id="home-weather-card" class="home-weather-card">
+      <div class="home-weather-icon" id="home-weather-icon">--</div>
+      <div>
+        <div class="home-weather-temp" id="home-weather-temp">--°C</div>
+        <div class="home-weather-cond" id="home-weather-cond">Wetter wird geladen...</div>
+      </div>
+    </div>
+
+    <!-- Home tab only (desktop): real, already-loaded Störungen-Status
+         instead of leaving this space empty - see loadDisruptions() -->
+    <div id="home-disruptions-card" class="home-disruptions-card">
+      <div class="home-section-header" style="margin-bottom:0.6rem;">
+        <h4 class="sidebar-sub-heading" style="margin:0;">Betriebslage</h4>
+        <span class="panel-status-slot" id="home-disruptions-status-badge"></span>
+      </div>
+      <div id="home-disruptions-list"></div>
+    </div>
+
     <!-- ============================================== -->
     <!-- 4. RIGHT INSPECTOR DRAWERS                     -->
     <!-- ============================================== -->
