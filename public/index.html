@@ -51,10 +51,15 @@
 
         <!-- Vertical Navigation Stack -->
         <nav class="rail-nav" role="tablist">
-          <button class="rail-tab active" data-tab="map" role="tab" id="tab-btn-map" title="Live-Radar (2D/3D)">
+          <button class="rail-tab active" data-tab="home" role="tab" id="tab-btn-home" title="Start">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span class="rail-label">Start</span>
+            <span class="rail-active-indicator"></span>
+          </button>
+
+          <button class="rail-tab" data-tab="map" role="tab" id="tab-btn-map" title="Live-Radar (2D/3D)">
             <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             <span class="rail-label">Radar</span>
-            <span class="rail-active-indicator"></span>
           </button>
 
           <button class="rail-tab" data-tab="departures" role="tab" id="tab-btn-departures" title="Abfahrten (DFI Monitor)">
@@ -176,8 +181,33 @@
       <!-- Scrollable Dynamic Operations Feed Area -->
       <div class="sidebar-content-scroll">
 
+        <!-- FEED 0: Home / Startansicht -->
+        <div class="sidebar-feed-panel active" id="sidebar-feed-home">
+          <div class="home-hero-search">
+            <h4 class="sidebar-sub-heading" style="margin-top:0;">Wie komme ich hin?</h4>
+            <div style="position:relative;" class="mb-2">
+              <input type="text" id="home-from-input" class="modern-input" placeholder="Start (z.B. Florastr.)" value="Köln Florastr." autocomplete="off">
+              <div id="home-from-autocomplete" class="autocomplete-list" style="display:none;"></div>
+            </div>
+            <div style="position:relative;" class="mt-2">
+              <input type="text" id="home-to-input" class="modern-input" placeholder="Ziel eingeben..." autocomplete="off">
+              <div id="home-to-autocomplete" class="autocomplete-list" style="display:none;"></div>
+            </div>
+            <button id="home-calculate-route-btn" class="action-btn primary full-width mt-2">
+              <span>Route berechnen ➔</span>
+            </button>
+          </div>
+
+          <div class="home-section-header mt-3">
+            <h4 class="sidebar-sub-heading" style="margin:0;">Was ist los in Köln?</h4>
+            <button id="home-all-events-btn" class="action-btn secondary small">Alle ansehen ➔</button>
+          </div>
+          <div id="home-events-hero" class="mt-2"></div>
+          <div id="home-events-more" class="mt-2"></div>
+        </div>
+
         <!-- FEED 1: Live-Radar Stream (Default for Tab Map) -->
-        <div class="sidebar-feed-panel active" id="sidebar-feed-radar">
+        <div class="sidebar-feed-panel" id="sidebar-feed-radar">
           <div class="feed-section-header">
             <div class="feed-section-title">
               <svg class="v-icon sm text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
@@ -435,6 +465,11 @@
           <div id="saved-commutes-list" class="mt-2"></div>
 
           <h4 class="sidebar-sub-heading mt-3">Pünktlichkeit je Linie</h4>
+          <div class="disruption-filter-bar mt-2" style="display:flex; gap:4px;">
+            <button class="pill-btn active" data-analytics-line-filter="stadtbahn">Stadtbahn</button>
+            <button class="pill-btn" data-analytics-line-filter="bus">Busse</button>
+            <button class="pill-btn" data-analytics-line-filter="all">Alle</button>
+          </div>
           <div class="bar-chart-wrap mt-2" id="analytics-line-chart"></div>
 
           <h4 class="sidebar-sub-heading mt-3">Linien-Performance</h4>
@@ -533,7 +568,7 @@
     <!-- ============================================== -->
     <!-- 3. MAIN MAP STAGE (FRAMED MISSION CANVAS)      -->
     <!-- ============================================== -->
-    <main class="map-stage">
+    <main class="map-stage home-dimmed">
 
       <!-- Map Floating Control Ribbon -->
       <div class="map-floating-ribbon">

@@ -692,6 +692,58 @@ button svg { pointer-events: none; }
   padding: 0.75rem 0.6rem 0.5rem;
 }
 
+/* Home tab: hero route search + hero event card */
+.home-hero-search {
+  background: var(--glass-chip-bg);
+  border: 1px solid var(--glass-chip-border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 0.75rem;
+}
+
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.home-event-hero {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-height: 150px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--glass-chip-bg) center / cover no-repeat;
+  border: 1px solid var(--glass-chip-border);
+}
+
+.home-event-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5,7,10,0) 0%, rgba(5,7,10,0.88) 100%);
+}
+
+.home-event-hero-body {
+  position: relative;
+  z-index: 1;
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.home-event-countdown {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #05070a;
+  background: #00f0ff;
+  border-radius: var(--radius-xs);
+  padding: 2px 7px;
+  margin-bottom: 0.35rem;
+}
+
 .bar-chart-row {
   display: flex;
   align-items: flex-end;
@@ -1162,6 +1214,15 @@ button svg { pointer-events: none; }
   flex-direction: column;
   overflow: hidden;
   background: #05070a;
+  filter: none;
+  transition: filter var(--transition-smooth), opacity var(--transition-smooth);
+}
+
+/* Home tab is a curated welcome screen, not the operations cockpit - the
+   live traffic map recedes into ambient background chrome instead of
+   competing with it for attention. */
+.map-stage.home-dimmed {
+  filter: saturate(55%) brightness(55%) blur(1.5px);
 }
 
 .map-floating-ribbon {

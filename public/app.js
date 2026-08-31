@@ -11,7 +11,7 @@ import { renderSparkline, renderBarChart } from './charts.js';
 // ==========================================================================
 const state = {
   theme: localStorage.getItem('koeln_theme') || 'dark',
-  activeTab: 'map',
+  activeTab: 'home',
   mapMode: 'dark', // 'dark' | 'light' | 'satellite'
 
   // Map Engine & Layers
@@ -43,19 +43,23 @@ const state = {
   // Transit Modes & Line Filters
   selectedTransitMode: 'all', // 'all' | 'bahn' | 'bus'
   selectedLineFilter: 'all', // 'all' | '1'..'18' | 'bus'
+  analyticsLineFilter: 'stadtbahn', // 'stadtbahn' | 'bus' | 'all' - see renderAnalyticsLines()
 
-  // Map Filter Toggles
+  // Map Filter Toggles - deliberately minimal by default (only the core
+  // "wo fahren gerade Bahnen"-Bild). Everything else stays real and just
+  // a click away in the Ebenen-Menu instead of all rendering at once on
+  // first load (was 9 of 10 layers on simultaneously - unreadable clutter).
   filters: {
     trains: true,          // KVB Stadtbahnen Live-Radar
-    buses: true,           // KVB Busse Live-Radar
+    buses: false,          // KVB Busse Live-Radar
     tracksBahn: true,      // Stadtbahn-Netz & U-Bahn-Tunnel
-    tracksBus: true,       // KVB Bus-Netz & Korridore
+    tracksBus: false,      // KVB Bus-Netz & Korridore
     stations: true,        // Haltestellen & U-Bahnhöfe
-    emergencies: true,     // Polizei & Feuerwehr
+    emergencies: false,    // Polizei & Feuerwehr
     bikes: false,          // KVB-Rad
-    traffic: true,         // TomTom Live-Verkehr
-    parking: true,         // Parkleitsystem
-    pegel: true            // Rheinpegel-Standort
+    traffic: false,        // TomTom Live-Verkehr
+    parking: false,        // Parkleitsystem
+    pegel: false            // Rheinpegel-Standort
   },
 
   // Flightradar Follow-Cam Mode
@@ -427,6 +431,7 @@ function initApp() {
   initBikesView();
   initRoutePlanner();
   initEventsView();
+  initHomeView();
   initDisruptionsView();
   initAnalyticsView();
   initWidgetsView();
@@ -443,6 +448,11 @@ function initApp() {
   loadDisruptions();
   loadWidgets();
   loadSavedRoutes();
+  // Explicitly (re-)apply the default tab instead of relying only on the
+  // static HTML `active` classes - switchTab() also sets runtime-only
+  // state the markup can't express (mobile sidebar-drawer open state,
+  // background map dimming), which otherwise stayed unset on first load.
+  switchTab(state.activeTab);
   startRadarLoop();
 }
 
@@ -536,7 +546,7 @@ function initTabs() {
 
   const brandHome = document.getElementById('brand-home-btn');
   if (brandHome) {
-    brandHome.addEventListener('click', () => switchTab('map'));
+    brandHome.addEventListener('click', () => switchTab('home'));
   }
 
   // Live Vehicle Stream Line Filters
@@ -581,10 +591,18 @@ function switchTab(tabId) {
     transitHud.style.display = 'flex';
   }
 
+  // The background map recedes into ambient chrome only on the curated
+  // Home welcome screen - everywhere else (including Radar) it stays the
+  // full operational view it already was.
+  const mapStageEl = document.querySelector('.map-stage');
+  if (mapStageEl) mapStageEl.classList.toggle('home-dimmed', tabId === 'home');
+
   if (tabId === 'map' && state.map) {
     setTimeout(() => {
       state.map.invalidateSize();
     }, 100);
+  } else if (tabId === 'home') {
+    loadEvents();
   } else if (tabId === 'departures') {
     fetchDepartures(state.activeStation.id);
   } else if (tabId === 'emergencies') {
@@ -1862,7 +1880,11 @@ function renderAnalyticsLines() {
   const tbody = document.getElementById('analytics-lines-tbody');
   if (!tbody || !state.analytics) return;
 
-  const lines = state.analytics.linePerformance || [];
+  const allLines = state.analytics.linePerformance || [];
+  const lineFilter = state.analyticsLineFilter || 'stadtbahn';
+  const lines = (lineFilter === 'all' ? allLines : allLines.filter(l => l.product === lineFilter))
+    .slice()
+    .sort((a, b) => a.punctuality - b.punctuality); // most-affected lines first
 
   const chartEl = document.getElementById('analytics-line-chart');
   renderBarChart(
@@ -1966,6 +1988,18 @@ function initAnalyticsView() {
       }
     });
   }
+
+  // 52 real lines (12 Stadtbahn + 40 Busse) don't fit in one readable
+  // bar chart / table at once - default to the Stadtbahn subset, same
+  // pill-filter pattern already used for the Störungen tab.
+  document.querySelectorAll('[data-analytics-line-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-analytics-line-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.analyticsLineFilter = btn.getAttribute('data-analytics-line-filter');
+      renderAnalyticsLines();
+    });
+  });
 }
 window.appPlanSavedRoute = function(from, to) {
   switchTab('routes');
@@ -2939,27 +2973,29 @@ function initDisruptionsView() {
 // ==========================================================================
 // Veranstaltungen (Events) — "was ist los + wie komme ich hin"
 // ==========================================================================
+// Event delegation: "Route hierhin" buttons are re-rendered on every
+// loadEvents() call, so a single listener on the container (same pattern
+// as setupAutocomplete's dropdown delegation) avoids re-binding per card.
+// Shared across the full Events list and the Home tab's hero/preview
+// cards, which render the same button markup.
+function wireEventRouteButtons(containerEl) {
+  if (!containerEl) return;
+  containerEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-route-to-station]');
+    if (!btn) return;
+    const stationName = btn.getAttribute('data-route-to-station');
+    switchTab('routes');
+    const toInput = document.getElementById('route-to-input');
+    if (toInput) toInput.value = stationName;
+  });
+}
+
 function initEventsView() {
   const filter = document.getElementById('events-district-filter');
   if (filter) {
     filter.addEventListener('change', () => renderEventCards(state.dataStores.events?.data?.events || []));
   }
-
-  // Event delegation: "Route hierhin" buttons are re-rendered on every
-  // loadEvents() call, so a single listener on the static list container
-  // (same pattern as setupAutocomplete's dropdown delegation) avoids
-  // re-binding per card.
-  const list = document.getElementById('events-list');
-  if (list) {
-    list.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-route-to-station]');
-      if (!btn) return;
-      const stationName = btn.getAttribute('data-route-to-station');
-      switchTab('routes');
-      const toInput = document.getElementById('route-to-input');
-      if (toInput) toInput.value = stationName;
-    });
-  }
+  wireEventRouteButtons(document.getElementById('events-list'));
 }
 
 async function loadEvents(force = false) {
@@ -2986,8 +3022,10 @@ async function loadEvents(force = false) {
     }
 
     renderEventCards(events);
+    renderHomeEventPreview(events);
   } else {
     listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
+    renderHomeEventPreview([]);
   }
 }
 
@@ -3041,6 +3079,97 @@ function renderEventCards(events) {
       </div>
     `;
   }).join('');
+}
+
+// Turns "in wie viel Zeit beginnt das?" into a short live label instead of
+// just repeating the date - real value computed from ev.startIso, never
+// a fabricated/rounded guess.
+function formatEventCountdown(startIso) {
+  const diffMs = new Date(startIso).getTime() - Date.now();
+  if (diffMs <= 0) return 'Läuft jetzt';
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 60) return `in ${diffMin} Min`;
+  const diffH = Math.round(diffMin / 60);
+  if (diffH < 48) return `in ${diffH} Std`;
+  return `in ${Math.round(diffH / 24)} Tagen`;
+}
+
+// Home tab: one curated hero card for the very next event plus 2 more
+// compact rows - never the full 163-event wall, so the landing screen
+// stays a "welcome", not another data dump.
+function renderHomeEventPreview(events) {
+  const heroEl = document.getElementById('home-events-hero');
+  const moreEl = document.getElementById('home-events-more');
+  if (!heroEl || !moreEl) return;
+
+  if (events.length === 0) {
+    heroEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
+    moreEl.innerHTML = '';
+    return;
+  }
+
+  const [hero, ...rest] = events;
+  const heroStart = new Date(hero.startIso);
+  const heroDateLabel = heroStart.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  const heroRouteButton = hero.nearestStation
+    ? `<button class="pill-btn mt-2" data-route-to-station="${escapeHtml(hero.nearestStation.name)}">➔ Route ab ${escapeHtml(hero.nearestStation.short)} (${hero.nearestStation.distanceMeters}m)</button>`
+    : '';
+
+  heroEl.innerHTML = `
+    <div class="home-event-hero" style="${hero.teaserImage ? `background-image:url('${hero.teaserImage.replace(/'/g, '%27')}');` : ''}">
+      <div class="home-event-hero-body">
+        <span class="home-event-countdown">${escapeHtml(formatEventCountdown(hero.startIso))}</span>
+        <div style="font-weight:700; font-size:0.95rem;">${escapeHtml(hero.title)}</div>
+        <div class="text-muted" style="font-size:0.75rem; margin-top:2px;">
+          ${heroDateLabel}${hero.time ? ' · ' + escapeHtml(hero.time) : ''}${hero.venue ? ' · ' + escapeHtml(hero.venue) : ''}
+        </div>
+        ${heroRouteButton}
+      </div>
+    </div>
+  `;
+
+  moreEl.innerHTML = rest.slice(0, 2).map(ev => {
+    const start = new Date(ev.startIso);
+    const dateLabel = start.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    return `
+      <div class="bento-card mb-2" style="padding:0.6rem 0.75rem;">
+        <div style="font-weight:700; font-size:0.8rem;">${escapeHtml(ev.title)}</div>
+        <div class="text-muted" style="font-size:0.7rem; margin-top:2px;">
+          ${dateLabel}${ev.venue ? ' · ' + escapeHtml(ev.venue) : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function initHomeView() {
+  wireEventRouteButtons(document.getElementById('home-events-hero'));
+  wireEventRouteButtons(document.getElementById('home-events-more'));
+
+  const fromInput = document.getElementById('home-from-input');
+  const toInput = document.getElementById('home-to-input');
+  const fromAutocomplete = document.getElementById('home-from-autocomplete');
+  const toAutocomplete = document.getElementById('home-to-autocomplete');
+  if (fromAutocomplete) setupAutocomplete(fromInput, fromAutocomplete, () => {});
+  if (toAutocomplete) setupAutocomplete(toInput, toAutocomplete, () => {});
+
+  const calcBtn = document.getElementById('home-calculate-route-btn');
+  if (calcBtn) {
+    calcBtn.addEventListener('click', () => {
+      const from = fromInput.value.trim();
+      const to = toInput.value.trim();
+      if (!from || !to) return;
+      switchTab('routes');
+      document.getElementById('route-from-input').value = from;
+      document.getElementById('route-to-input').value = to;
+      calculateRoute(from, to);
+    });
+  }
+
+  const allEventsBtn = document.getElementById('home-all-events-btn');
+  if (allEventsBtn) {
+    allEventsBtn.addEventListener('click', () => switchTab('events'));
+  }
 }
 
 async function loadDisruptions(force = false) {
