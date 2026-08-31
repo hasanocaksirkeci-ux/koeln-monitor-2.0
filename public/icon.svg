@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="cologneGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E3000F" />
+      <stop offset="100%" stop-color="#99000A" />
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <!-- Background Rounded Shield -->
+  <rect width="512" height="512" rx="110" fill="url(#cologneGrad)" />
+  <rect width="512" height="256" rx="110" fill="url(#glow)" />
+  
+  <!-- Cologne Cathedral Silhouette + Train Tracks stylized -->
+  <g fill="#FFFFFF">
+    <!-- Left Spire -->
+    <path d="M156 120 L188 300 L124 300 Z" opacity="0.95"/>
+    <polygon points="156,80 162,120 150,120" />
+    <!-- Right Spire -->
+    <path d="M256 120 L288 300 L224 300 Z" opacity="0.95"/>
+    <polygon points="256,80 262,120 250,120" />
+    
+    <!-- Cathedral Base & Arches -->
+    <rect x="110" y="290" width="192" height="30" rx="4" />
+    
+    <!-- Modern Metro Front (KVB Train) -->
+    <rect x="170" y="240" width="172" height="180" rx="28" fill="#FFFFFF" />
+    <rect x="186" y="256" width="140" height="70" rx="16" fill="#131B2E" />
+    <!-- Windshield Line Display -->
+    <rect x="200" y="268" width="112" height="24" rx="6" fill="#E3000F" />
+    <text x="256" y="285" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#FFFFFF" text-anchor="middle">KVB LIVE</text>
+    
+    <!-- Metro Headlights -->
+    <circle cx="206" cy="380" r="14" fill="#FACC15" />
+    <circle cx="306" cy="380" r="14" fill="#FACC15" />
+    <rect x="236" y="372" width="40" height="14" rx="4" fill="#94A3B8" />
+
+    <!-- Pulse Wave signal rings -->
+    <circle cx="390" cy="140" r="10" fill="#22C55E" />
+    <circle cx="390" cy="140" r="22" fill="none" stroke="#22C55E" stroke-width="4" stroke-dasharray="6,4" opacity="0.8" />
+    <circle cx="390" cy="140" r="34" fill="none" stroke="#22C55E" stroke-width="3" opacity="0.4" />
+  </g>
+</svg>

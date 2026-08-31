@@ -1,0 +1,9 @@
+node_modules/
+data/*.sqlite
+data/*.sqlite-journal
+*.osm.pbf
+.env
+.DS_Store
+Thumbs.db
+.vercel
+screenshots/

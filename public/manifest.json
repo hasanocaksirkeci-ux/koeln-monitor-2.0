@@ -1,0 +1,17 @@
+{
+  "name": "Köln Live-Monitor",
+  "short_name": "KVB Live",
+  "description": "Blitzschneller KVB Abfahrtsmonitor, Routenplaner, Störungsmelder und Köln Dashboard mit echten Daten",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#E3000F",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

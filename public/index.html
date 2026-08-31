@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <title>Köln Live-Monitor | Operations Dashboard & Traffic Management Platform</title>
+  
+  <!-- Apple & PWA Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Köln Live">
+  <meta name="theme-color" content="#07090e">
+  <meta name="description" content="Echtzeit Operations Dashboard für Mobilität, KVB Live-Radar, Blaulicht & Sicherheit in Köln.">
+
+  <!-- Google Fonts: Plus Jakarta Sans & Geist Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="dashboard-body">
+
+  <div class="dashboard-layout">
+
+    <!-- ============================================== -->
+    <!-- 1. LEFT NAVIGATION RAIL (68px)                 -->
+    <!-- ============================================== -->
+    <aside class="nav-rail">
+      <div class="rail-top">
+        <div class="rail-brand" id="brand-home-btn" title="Köln Live-Monitor">
+          <div class="rail-logo-box">
+            <svg class="v-icon md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect width="16" height="16" x="4" y="3" rx="2"/>
+              <path d="M4 11h16"/>
+              <path d="M12 3v8"/>
+              <path d="m8 19-2 3"/>
+              <path d="m16 19 2 3"/>
+              <circle cx="8" cy="15" r="1" fill="currentColor"/>
+              <circle cx="16" cy="15" r="1" fill="currentColor"/>
+            </svg>
+            <span class="logo-beacon"></span>
+          </div>
+        </div>
+
+        <!-- Vertical Navigation Stack -->
+        <nav class="rail-nav" role="tablist">
+          <button class="rail-tab active" data-tab="map" role="tab" id="tab-btn-map" title="Live-Radar (2D/3D)">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <span class="rail-label">Radar</span>
+            <span class="rail-active-indicator"></span>
+          </button>
+
+          <button class="rail-tab" data-tab="departures" role="tab" id="tab-btn-departures" title="Abfahrten (DFI Monitor)">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="rail-label">Abfahrten</span>
+          </button>
+
+          <button class="rail-tab" data-tab="emergencies" role="tab" id="tab-btn-emergencies" title="Blaulicht & Polizei/Feuerwehr">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+            <span class="rail-label">Blaulicht</span>
+            <span class="rail-badge-alert" id="rail-emergency-badge">!</span>
+          </button>
+
+          <button class="rail-tab" data-tab="bikes" role="tab" id="tab-btn-bikes" title="KVB-Rad & Nextbike">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+            <span class="rail-label">KVB-Rad</span>
+          </button>
+
+          <button class="rail-tab" data-tab="routes" role="tab" id="tab-btn-routes" title="Routenplaner">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+            <span class="rail-label">Routen</span>
+          </button>
+
+          <button class="rail-tab" data-tab="disruptions" role="tab" id="tab-btn-disruptions" title="Störungen & Betriebslage">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+            <span class="rail-label">Störungen</span>
+          </button>
+
+          <button class="rail-tab" data-tab="analytics" role="tab" id="tab-btn-analytics" title="Pünktlichkeit & SQLite Analytics">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>
+            <span class="rail-label">Analytics</span>
+          </button>
+
+          <button class="rail-tab" data-tab="widgets" role="tab" id="tab-btn-widgets" title="City-Widgets (Rheinpegel & Wetter)">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            <span class="rail-label">Widgets</span>
+          </button>
+
+          <button class="rail-tab rail-ai-tab" data-tab="ai" role="tab" id="tab-btn-ai" title="Köln AI Concierge (Gemini Flash)">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+            <span class="rail-label">Köln AI</span>
+            <span class="rail-ai-dot"></span>
+          </button>
+        </nav>
+      </div>
+
+      <div class="rail-bottom">
+        <button id="theme-toggle-btn" class="rail-icon-btn" title="Farbschema umschalten">
+          <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        </button>
+        <div class="rail-ping-status" title="Live-Schnittstellen verbunden">
+          <span class="ping-dot"></span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================================== -->
+    <!-- 2. OPERATIONS DASHBOARD SIDEBAR (360px)        -->
+    <!-- ============================================== -->
+    <section class="dashboard-sidebar">
+      
+      <!-- Sidebar Header & Global Search -->
+      <div class="sidebar-header">
+        <div class="sidebar-title-row">
+          <div>
+            <h2 class="sidebar-main-title">KÖLN LIVE-MONITOR</h2>
+            <div class="sidebar-sub-title">Operations & Fleet Control</div>
+          </div>
+          <div class="live-clock-badge mono" id="header-clock">--:--:--</div>
+        </div>
+
+        <div class="sidebar-search-box">
+          <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="global-station-search" placeholder="Haltestelle, Linie, Veedel suchen..." autocomplete="off">
+          <span class="search-cmd-kbd mono">⌘K</span>
+          <div id="global-search-results" class="search-dropdown-menu" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Bento Telemetry Summary Strip -->
+      <div class="bento-telemetry-grid">
+        <div class="bento-card">
+          <div class="bento-header">
+            <span class="bento-dot pulse-emerald"></span>
+            <span class="bento-label">FLOTTE</span>
+          </div>
+          <div class="bento-val mono text-cyan" id="vehicle-count-header">--</div>
+          <div class="bento-sub">Fahrzeuge online</div>
+        </div>
+
+        <div class="bento-card">
+          <div class="bento-header">
+            <span class="bento-label">PÜNKTLICH</span>
+          </div>
+          <div class="bento-val mono text-emerald" id="header-punctuality-val">94.2%</div>
+          <div class="bento-sub">Netz-Score</div>
+        </div>
+
+        <div class="bento-card">
+          <div class="bento-header">
+            <span class="bento-dot pulse-rose"></span>
+            <span class="bento-label">BLAULICHT</span>
+          </div>
+          <div class="bento-val mono text-rose" id="header-emergency-val">--</div>
+          <div class="bento-sub">Aktive Einsätze</div>
+        </div>
+      </div>
+
+      <!-- Scrollable Dynamic Operations Feed Area -->
+      <div class="sidebar-content-scroll">
+
+        <!-- FEED 1: Live-Radar Stream (Default for Tab Map) -->
+        <div class="sidebar-feed-panel active" id="sidebar-feed-radar">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              <span>Live Flotten-Stream</span>
+            </div>
+            <div class="line-filter-chips">
+              <button class="lchip active" data-lfilter="all">Alle</button>
+              <button class="lchip" data-lfilter="bahn">Bahnen</button>
+              <button class="lchip" data-lfilter="bus">Busse</button>
+            </div>
+          </div>
+
+          <div class="vehicle-stream-list" id="vehicle-stream-list">
+            <!-- Dynamically populated live vehicle stream -->
+            <div class="stream-placeholder py-6 text-center text-muted">
+              <div class="spinner"></div>
+              <div class="mt-2">Lade KVB Flotte...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FEED 2: Abfahrten View -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-departures">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>Haltestellen-Abfahrten</span>
+            </div>
+            <button id="manual-refresh-btn" class="action-btn secondary small">Aktualisieren</button>
+          </div>
+
+          <div class="station-search-box mt-2">
+            <input type="text" id="station-input" class="modern-input" placeholder="Haltestelle eingeben (z.B. Florastr.)...">
+            <div id="station-autocomplete" class="autocomplete-list" style="display:none;"></div>
+          </div>
+
+          <div class="fav-chips-row mt-2" id="favorites-list"></div>
+
+          <div class="active-station-summary mt-3">
+            <div class="active-station-top">
+              <h3 id="active-station-name" style="font-size:1.05rem; font-weight:800;">Florastr.</h3>
+              <div id="active-station-lines" style="display:flex; gap:0.25rem;"></div>
+            </div>
+          </div>
+
+          <div class="departures-table-wrap mt-3">
+            <table class="dfi-table">
+              <thead>
+                <tr>
+                  <th>Linie</th>
+                  <th>Ziel</th>
+                  <th>Gleis</th>
+                  <th class="text-right">Abfahrt</th>
+                </tr>
+              </thead>
+              <tbody id="departures-tbody">
+                <tr><td colspan="4" class="text-center py-4 text-muted">Lade Abfahrten...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- FEED 3: Blaulicht Feed -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-emergencies">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-rose" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <span>Blaulicht Einsatz-Feed</span>
+            </div>
+          </div>
+
+          <div class="line-filter-chips mt-2">
+            <button class="lchip active" data-em-cat="all">Alle</button>
+            <button class="lchip" data-em-cat="police">Polizei</button>
+            <button class="lchip" data-em-cat="fire">Feuerwehr</button>
+            <button class="lchip" data-em-cat="critical">Schwer</button>
+          </div>
+
+          <div class="emergencies-feed-list mt-3" id="emergencies-list">
+            <!-- Dynamic emergency cards -->
+          </div>
+        </div>
+
+        <!-- FEED 4: KVB-Rad View -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-bikes">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+              <span>KVB-Rad & Nextbike</span>
+            </div>
+            <button id="show-bikes-on-map-btn" class="action-btn secondary small">Auf Karte</button>
+          </div>
+
+          <div class="bento-telemetry-grid mt-2" style="grid-template-columns: 1fr 1fr;">
+            <div class="bento-card">
+              <div class="bento-label">VERFÜGBAR</div>
+              <div class="bento-val mono text-emerald" id="bikes-total-available">--</div>
+            </div>
+            <div class="bento-card">
+              <div class="bento-label">STATIONEN</div>
+              <div class="bento-val mono text-cyan" id="bikes-total-stations">--</div>
+            </div>
+          </div>
+
+          <div class="bikes-list-wrap mt-3" id="bikes-stations-grid"></div>
+        </div>
+
+        <!-- FEED 5: Routenplaner -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-routes">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+              <span>Routenplaner Köln</span>
+            </div>
+          </div>
+
+          <div class="route-input-group mt-2">
+            <input type="text" id="route-from-input" class="modern-input mb-2" placeholder="Start (z.B. Florastr.)" value="Köln Florastr.">
+            <div style="display:flex; justify-content:center; margin: -0.25rem 0;">
+              <button id="swap-route-btn" class="icon-btn-small" title="Start und Ziel tauschen">⇅</button>
+            </div>
+            <input type="text" id="route-to-input" class="modern-input mt-2" placeholder="Ziel (z.B. Neumarkt)" value="Köln Neumarkt">
+            
+            <div class="preset-routes-row mt-2">
+              <button class="preset-btn" data-from="Köln Florastr." data-to="Köln Neumarkt">Florastr. ➔ Neumarkt</button>
+              <button class="preset-btn" data-from="Köln Dom/Hbf" data-to="Köln Messe/Deutz">Dom ➔ Deutz</button>
+              <button class="preset-btn" data-from="Köln Rudolfplatz" data-to="Köln Ebertplatz">Rudolfplatz ➔ Ebertplatz</button>
+            </div>
+
+            <button id="calculate-route-btn" class="action-btn primary full-width mt-3">
+              <span>Verbindung berechnen ➔</span>
+            </button>
+          </div>
+
+          <div id="route-results-container" class="mt-3" style="display:none;">
+            <div id="route-cards-list"></div>
+          </div>
+        </div>
+
+        <!-- FEED 6: Störungen & Betriebslage -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-disruptions">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+              <span>KVB Betriebslage</span>
+            </div>
+            <span class="dock-badge-alert" id="disruption-badge">NORMAL</span>
+          </div>
+
+          <div class="disruption-grid-wrap mt-3">
+            <h4 class="sidebar-sub-heading">Stadtbahn-Netz (1 - 18)</h4>
+            <div class="status-grid mt-2" id="stadtbahn-status-grid"></div>
+          </div>
+        </div>
+
+        <!-- FEED 7: Analytics -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-analytics">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>
+              <span>Netz-Pünktlichkeit & SQLite</span>
+            </div>
+            <button id="add-commute-btn" class="action-btn secondary small">+ Pendelroute</button>
+          </div>
+
+          <div class="bento-telemetry-grid mt-2" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="bento-card">
+              <div class="bento-label">SCORE</div>
+              <div class="bento-val mono text-emerald" id="an-score-val">94.2%</div>
+            </div>
+            <div class="bento-card">
+              <div class="bento-label">GETRACKT</div>
+              <div class="bento-val mono" id="an-total-tracked">300</div>
+            </div>
+            <div class="bento-card">
+              <div class="bento-label">Ø VERZÖGERUNG</div>
+              <div class="bento-val mono text-amber" id="an-avg-delay">0.8 Min</div>
+            </div>
+          </div>
+
+          <h4 class="sidebar-sub-heading mt-3">Gespeicherte Pendlerrouten</h4>
+          <div id="saved-commutes-list" class="mt-2"></div>
+
+          <h4 class="sidebar-sub-heading mt-3">Linien-Performance</h4>
+          <div class="analytics-table-wrap mt-2">
+            <table class="dfi-table">
+              <thead>
+                <tr>
+                  <th>Linie</th>
+                  <th>Bahnen</th>
+                  <th>Pünktlich</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="analytics-lines-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- FEED 8: City-Widgets -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-widgets">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+              <span>Köln City-Widgets</span>
+            </div>
+          </div>
+
+          <div class="bento-card mt-2">
+            <div class="bento-header">
+              <span class="bento-label">RHEINPEGEL KÖLN</span>
+              <span class="badge-tag" id="pegel-trend-badge">Normal</span>
+            </div>
+            <div class="bento-val mono text-cyan" id="pegel-cm-val">117</div>
+            <div class="bento-sub">Zentimeter (WSV PegelOnline)</div>
+          </div>
+
+          <div class="bento-card mt-2">
+            <div class="bento-header">
+              <span class="bento-label">WETTER KÖLN</span>
+              <span class="badge-tag" id="header-weather-val">18°C</span>
+            </div>
+            <div class="bento-val mono" id="weather-temp-val">18°C</div>
+            <div class="bento-sub" id="weather-cond-text">Heiter</div>
+          </div>
+
+          <div class="bento-card mt-2">
+            <div class="bento-header">
+              <span class="bento-label">PARKLEITSYSTEM</span>
+            </div>
+            <div class="bento-val mono text-emerald" id="parking-total-free">--</div>
+            <div class="bento-sub">Freie Parkplätze im Zentrum</div>
+          </div>
+        </div>
+
+        <!-- FEED 9: Köln AI Concierge Chat -->
+        <div class="sidebar-feed-panel" id="sidebar-feed-ai">
+          <div class="feed-section-header">
+            <div class="feed-section-title">
+              <svg class="v-icon sm text-purple" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+              <span>Köln AI Concierge</span>
+            </div>
+            <span class="dock-ai-badge">GEMINI 2.5</span>
+          </div>
+
+          <div class="quick-chips-row mt-2">
+            <button class="quick-chip" data-ai-prompt="Wie komme ich von Florastr. zum Neumarkt?">Florastr. ➔ Neumarkt</button>
+            <button class="quick-chip" data-ai-prompt="Wie ist die Betriebslage der Linie 12?">Status Linie 12</button>
+            <button class="quick-chip" data-ai-prompt="Aktuelle Blaulicht-Lage in Köln?">Blaulicht-Lage</button>
+          </div>
+
+          <div class="ai-chat-messages-container mt-2" id="ai-chat-messages">
+            <div class="ai-msg bot-msg">
+              <div class="ai-msg-avatar">⚡</div>
+              <div class="ai-msg-content">
+                Hallo! Ich bin dein Kölner Mobilitäts- und City-Assistent. Frage mich nach Haltestellen, Verbindungen, Einsätzen oder Störungen – ich zeichne sie dir direkt auf der Live-Karte ein!
+              </div>
+            </div>
+          </div>
+
+          <form id="ai-chat-form" class="ai-input-form mt-2">
+            <input type="text" id="ai-chat-input" class="modern-input" placeholder="Frage zu Köln, Linie, Route..." autocomplete="off">
+            <button type="submit" class="action-btn primary" aria-label="Senden">➔</button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- 3. MAIN MAP STAGE (FRAMED MISSION CANVAS)      -->
+    <!-- ============================================== -->
+    <main class="map-stage">
+
+      <!-- Map Floating Control Ribbon -->
+      <div class="map-floating-ribbon">
+        
+        <!-- Left: Curated 3 High-End Map Switcher (Dunkel / Hell / GPS) -->
+        <div class="ribbon-left">
+          <div class="map-mode-segmented-control" role="radiogroup" aria-label="Kartenstil auswählen">
+            <button class="seg-btn active" data-map-mode="dark" role="radio" aria-checked="true" id="mode-btn-dark" title="Cyber-OLED Dark Canvas">
+              <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+              <span>Dunkel</span>
+            </button>
+            <button class="seg-btn" data-map-mode="light" role="radio" aria-checked="false" id="mode-btn-light" title="Studio Light Canvas">
+              <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+              <span>Hell</span>
+            </button>
+            <button class="seg-btn" data-map-mode="satellite" role="radio" aria-checked="false" id="mode-btn-satellite" title="High-Res GPS Satellit">
+              <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+              <span>GPS</span>
+            </button>
+          </div>
+
+          <!-- 3D Perspective Tilt Pill -->
+          <button class="ribbon-btn" id="toggle-3d-btn" title="3D-Drohnen-Perspektive (28° Tilt) umschalten">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 16-9 5-9-5V8l9-5 9 5Z"/><path d="m3.27 6.96 8.73 4.87 8.73-4.87"/><path d="M12 22.08V12"/></svg>
+            <span>3D Tilt</span>
+          </button>
+
+          <!-- Layer Filters Dropdown -->
+          <div class="map-dropdown-wrap" id="map-layers-dropdown-wrap">
+            <button class="ribbon-btn" id="map-layers-btn" type="button" aria-expanded="false" title="Karten-Ebenen & Filter">
+              <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <span>Ebenen</span>
+              <span class="active-layers-badge mono" id="active-layers-badge">5</span>
+            </button>
+            <div class="map-dropdown-menu layers-menu" id="map-layers-menu">
+              <label class="layer-item">
+                <input type="checkbox" id="chk-trains" data-layer="trains" checked>
+                <span class="custom-chk"></span>
+                <span>🚇 KVB Stadtbahnen (Live-Radar)</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-buses" data-layer="buses" checked>
+                <span class="custom-chk"></span>
+                <span>🚌 KVB Busse (Live-Radar)</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-tracks-bahn" data-layer="tracksBahn" checked>
+                <span class="custom-chk"></span>
+                <span>🚇 Stadtbahn-Netz & Tunnelröhren</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-tracks-bus" data-layer="tracksBus" checked>
+                <span class="custom-chk"></span>
+                <span>🚌 KVB Bus-Netz & Korridore</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-stations" data-layer="stations" checked>
+                <span class="custom-chk"></span>
+                <span>📍 Haltestellen & U-Bahnhöfe</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-emergencies" data-layer="emergencies" checked>
+                <span class="custom-chk"></span>
+                <span>🚨 Blaulicht (Polizei & Feuerwehr)</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-bikes" data-layer="bikes">
+                <span class="custom-chk"></span>
+                <span>🚲 KVB-Rad / Nextbike</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-traffic" data-layer="traffic" checked>
+                <span class="custom-chk"></span>
+                <span>🚗 TomTom Live-Verkehr</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-parking" data-layer="parking">
+                <span class="custom-chk"></span>
+                <span>🅿️ Parkleitsystem</span>
+              </label>
+              <label class="layer-item">
+                <input type="checkbox" id="chk-pegel" data-layer="pegel" checked>
+                <span class="custom-chk"></span>
+                <span>🌊 Rheinpegel-Standort</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: GPS, Center & Refresh -->
+        <div class="ribbon-right">
+          <button id="gps-track-btn" class="ribbon-btn" title="Mein GPS-Standort orten">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg>
+            <span>GPS</span>
+          </button>
+          <button id="center-cologne-btn" class="ribbon-btn" title="Köln Zentrum zentrieren">
+            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="2" y2="22"/><line x1="2" x2="22" y1="12" y2="12"/></svg>
+            <span>Köln</span>
+          </button>
+          <button id="refresh-radar-btn" class="ribbon-btn telem-btn" title="Radar sofort aktualisieren">
+            <svg class="v-icon sm refresh-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            <span class="mono" id="radar-countdown-text">6s</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Floating Interactive Transit Quick-HUD Bar -->
+      <div class="transit-hud-bar" id="transit-hud-bar">
+        <div class="transit-hud-modes">
+          <button class="thud-mode-btn active" data-transit-mode="all" id="tmode-all" title="Alle Fahrzeuge & Strecken">Alle</button>
+          <button class="thud-mode-btn" data-transit-mode="bahn" id="tmode-bahn" title="Nur KVB Stadtbahnen">
+            <span>🚇 Bahnen</span>
+            <span class="thud-badge mono" id="hud-stadtbahn-count">--</span>
+          </button>
+          <button class="thud-mode-btn" data-transit-mode="bus" id="tmode-bus" title="Nur KVB Busse">
+            <span>🚌 Busse</span>
+            <span class="thud-badge mono" id="hud-bus-count">--</span>
+          </button>
+        </div>
+        <div class="transit-line-pills" id="transit-line-pills">
+          <button class="tline-pill" data-line="1" style="--lcol:#E3000F;" title="Linie 1: Weiden West ➔ Bensberg">1</button>
+          <button class="tline-pill" data-line="3" style="--lcol:#8B5EA2;" title="Linie 3: Mengenich ➔ Thielenbruch">3</button>
+          <button class="tline-pill" data-line="4" style="--lcol:#E30679;" title="Linie 4: Bocklemünd ➔ Schlebusch">4</button>
+          <button class="tline-pill" data-line="5" style="--lcol:#865438;" title="Linie 5: Butzweilerhof ➔ Heumarkt">5</button>
+          <button class="tline-pill" data-line="7" style="--lcol:#EC6608;" title="Linie 7: Frechen ➔ Zündorf">7</button>
+          <button class="tline-pill" data-line="9" style="--lcol:#3C2067;" title="Linie 9: Sülz ➔ Königsforst">9</button>
+          <button class="tline-pill" data-line="12" style="--lcol:#71A825;" title="Linie 12: Merkenich ➔ Zollstock">12</button>
+          <button class="tline-pill" data-line="13" style="--lcol:#A67C52;" title="Linie 13: Sülzgürtel ➔ Holweide">13</button>
+          <button class="tline-pill" data-line="15" style="--lcol:#00835B;" title="Linie 15: Chorweiler ➔ Ubierring">15</button>
+          <button class="tline-pill" data-line="16" style="--lcol:#006596;" title="Linie 16: Niehl ➔ Bonn Hbf">16</button>
+          <button class="tline-pill" data-line="17" style="--lcol:#7CAFD4; color:#000;" title="Linie 17: Severinstr. ➔ Sürth">17</button>
+          <button class="tline-pill" data-line="18" style="--lcol:#0097D6;" title="Linie 18: Thielenbruch ➔ Bonn Hbf">18</button>
+          <button class="tline-pill bus-pill" data-line="bus" style="--lcol:#D92534;" title="KVB Busnetz Korridore">🚌 Bus</button>
+        </div>
+      </div>
+
+      <!-- Framed Map Canvas Wrapper -->
+      <div id="map-3d-wrapper" class="map-3d-wrapper">
+        <div id="leaflet-map" class="map-element"></div>
+      </div>
+
+      <!-- Flightradar Cockpit Camera HUD -->
+      <div id="cockpit-hud" class="cockpit-hud glass-panel" style="display: none;">
+        <div class="cockpit-inner">
+          <div class="cockpit-header">
+            <div class="cockpit-line-tag">
+              <span id="cockpit-badge" class="line-badge">12</span>
+              <div class="cockpit-titles">
+                <span class="cockpit-label-tiny">COCKPIT-KAMERA</span>
+                <span id="cockpit-direction" class="cockpit-dest">Zollstock Südfriedhof</span>
+              </div>
+            </div>
+            <button id="cockpit-exit-btn" class="cockpit-close-btn">
+              <span>✕ Beenden</span>
+            </button>
+          </div>
+          <div class="cockpit-telemetry-row">
+            <div class="telem-block">
+              <span class="telem-lbl">TEMPO</span>
+              <span class="telem-num mono text-cyan" id="cockpit-speed">34 km/h</span>
+            </div>
+            <div class="telem-block">
+              <span class="telem-lbl">NÄCHSTER HALT</span>
+              <span class="telem-num" id="cockpit-next-stop">Florastr.</span>
+            </div>
+            <div class="telem-block">
+              <span class="telem-lbl">STATUS</span>
+              <span class="telem-num mono text-emerald" id="cockpit-delay">Pünktlich</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Map AI Trigger Pill -->
+      <button id="map-ai-trigger-btn" class="map-ai-trigger-btn" title="Köln AI Assistent öffnen">
+        <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+        <span>Köln AI</span>
+        <span class="ai-flash-badge">FLASH</span>
+      </button>
+
+      <!-- Expandable Floating Map AI Card -->
+      <div id="map-ai-panel" class="map-ai-panel glass-panel" style="display: none;">
+        <div class="map-ai-header">
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <div class="live-dot-green"></div>
+            <div>
+              <h3 style="font-size:0.95rem; font-weight:800;">Köln AI Concierge</h3>
+              <div class="text-muted" style="font-size:0.7rem;">Gemini Flash • Live auf Karte</div>
+            </div>
+          </div>
+          <button id="map-ai-close-btn" class="icon-btn-small" aria-label="Schließen">✕</button>
+        </div>
+
+        <div class="map-ai-pills-row">
+          <button class="map-ai-pill" data-prompt="Zeige mir die Route von Florastr. zum Neumarkt auf der Karte">Florastr. ➔ Neumarkt</button>
+          <button class="map-ai-pill" data-prompt="Wie ist die Betriebslage der Linie 12?">Status Linie 12</button>
+          <button class="map-ai-pill" data-prompt="Gibt es aktuelle Blaulicht-Einsätze in Köln?">Blaulicht-Lage</button>
+        </div>
+
+        <div id="map-ai-messages" class="map-ai-messages">
+          <div class="ai-msg bot-msg">
+            <div class="ai-msg-avatar">⚡</div>
+            <div class="ai-msg-content">
+              Hallo! Ich bin dein Kölner Mobilitäts- und City-Assistent. Frage mich nach Haltestellen, Verbindungen, Einsätzen oder Störungen – ich zeichne sie dir direkt auf der Live-Karte ein!
+            </div>
+          </div>
+        </div>
+
+        <form id="map-ai-form" class="map-ai-input-form">
+          <input type="text" id="map-ai-input" class="map-ai-input" placeholder="Frage zu Köln, Verbindung, Stau..." autocomplete="off">
+          <button type="submit" id="map-ai-send-btn" class="map-ai-send-btn" aria-label="Senden">➔</button>
+        </form>
+      </div>
+
+    </main>
+
+    <!-- ============================================== -->
+    <!-- 4. RIGHT INSPECTOR DRAWERS                     -->
+    <!-- ============================================== -->
+    
+    <!-- Linien-Inspektor (Route & Track Inspector) -->
+    <div id="line-inspector-drawer" class="line-inspector-drawer glass-panel" style="display: none;">
+      <div class="sheet-drag-handle"></div>
+      <div class="inspector-header">
+        <div class="inspector-title-row">
+          <span id="insp-line-badge" class="line-badge large">12</span>
+          <div class="inspector-title-col">
+            <h3 id="insp-line-title">Linie 12</h3>
+            <div id="insp-line-termini" class="inspector-termini text-muted">Merkenich ➔ Zollstock</div>
+          </div>
+        </div>
+        <button id="insp-close-btn" class="icon-btn-close" aria-label="Schließen">✕</button>
+      </div>
+
+      <div class="inspector-body">
+        <div class="inspector-stats-grid">
+          <div class="istat-card">
+            <span class="istat-label">Fahrzeuge Live</span>
+            <span class="istat-val mono text-cyan" id="insp-active-vehicles">--</span>
+          </div>
+          <div class="istat-card">
+            <span class="istat-label">Stationen</span>
+            <span class="istat-val mono text-emerald" id="insp-station-count">--</span>
+          </div>
+          <div class="istat-card">
+            <span class="istat-label">U-Bahn Tunnel</span>
+            <span class="istat-val mono text-purple" id="insp-tunnel-count">--</span>
+          </div>
+        </div>
+
+        <div class="inspector-action-row">
+          <button id="insp-focus-line-btn" class="action-btn primary small full-width">
+            <span>⚡ Auf ganzer Strecke fokussieren</span>
+          </button>
+        </div>
+
+        <div class="inspector-timeline-header">
+          <span class="mono" style="font-size:0.75rem; letter-spacing:0.05em; color:var(--text-muted);">HALTESTELLEN-ABFOLGE</span>
+        </div>
+        
+        <div id="insp-timeline-list" class="inspector-timeline-list">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicle Detail Card -->
+    <div id="vehicle-drawer" class="vehicle-drawer glass-panel" style="display: none;">
+      <div class="sheet-drag-handle"></div>
+      <div class="vdrawer-header">
+        <div class="vdrawer-title-row">
+          <span id="vdrawer-badge" class="line-badge large">12</span>
+          <div class="vdrawer-text-col">
+            <h3 id="vdrawer-line-name">Stadtbahn Linie 12</h3>
+            <div id="vdrawer-destination" class="text-muted">Richtung Zollstock Südfriedhof</div>
+          </div>
+        </div>
+        <button id="vdrawer-close-btn" class="icon-btn-close" aria-label="Schließen">✕</button>
+      </div>
+
+      <div class="vdrawer-body">
+        <div class="vdrawer-stats-grid">
+          <div class="vstat-card">
+            <span class="vstat-label">Nächste Station</span>
+            <span class="vstat-value" id="vdrawer-next-stop">Florastr.</span>
+          </div>
+          <div class="vstat-card">
+            <span class="vstat-label">Pünktlichkeit</span>
+            <span class="vstat-value mono text-emerald" id="vdrawer-delay-status">Pünktlich</span>
+          </div>
+          <div class="vstat-card">
+            <span class="vstat-label">Geschwindigkeit</span>
+            <span class="vstat-value mono text-cyan" id="vdrawer-speed">~35 km/h</span>
+          </div>
+        </div>
+
+        <div class="vdrawer-actions">
+          <button id="vdrawer-cockpit-btn" class="action-btn primary full-width">
+            <span>Cockpit-Kamera (Follow-Cam)</span>
+          </button>
+          <button id="vdrawer-highlight-btn" class="action-btn secondary full-width mt-2">
+            <span>Ganze Route auf Karte hervorheben</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Station Departures Drawer -->
+    <div id="station-drawer" class="station-drawer glass-panel" style="display: none;">
+      <div class="sheet-drag-handle"></div>
+      <div class="drawer-header">
+        <div class="drawer-title-area">
+          <div>
+            <h3 id="drawer-station-name" class="drawer-station-name">Haltestelle</h3>
+            <div id="drawer-station-lines" class="drawer-station-lines"></div>
+          </div>
+        </div>
+        <div class="drawer-actions">
+          <button id="drawer-fav-btn" class="icon-btn-small" title="Als Favorit speichern">★</button>
+          <button id="drawer-route-btn" class="icon-btn-small" title="Route hierhin planen">➔</button>
+          <button id="drawer-close-btn" class="icon-btn-small" title="Schließen">✕</button>
+        </div>
+      </div>
+
+      <div class="drawer-body">
+        <div class="drawer-filter-bar">
+          <button class="pill-btn active" data-drawer-filter="all">Alle</button>
+          <button class="pill-btn" data-drawer-filter="stadtbahn">Stadtbahn</button>
+          <button class="pill-btn" data-drawer-filter="bus">Bus</button>
+        </div>
+
+        <div id="drawer-departures-list" class="drawer-departures-list">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <span>Lade Live-Abfahrten...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emergency Modal -->
+    <div id="emergency-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card glass-panel">
+        <h3 id="em-modal-title" style="font-size:1.15rem; font-weight:800;">Einsatzmeldung</h3>
+        <div id="em-modal-meta" class="text-muted mono mt-1" style="font-size:0.8rem;">Polizei Köln • Veedel • vor 1 Std.</div>
+        <p id="em-modal-desc" class="mt-3" style="line-height:1.6; color:var(--text-primary);"></p>
+        <div class="mt-4" style="display:flex; justify-content:space-between; align-items:center;">
+          <a id="em-modal-link" href="#" target="_blank" class="action-btn secondary small">Presseportal ↗</a>
+          <div style="display:flex; gap:0.5rem;">
+            <button id="em-modal-map-btn" class="action-btn primary small">Auf Karte zeigen</button>
+            <button id="close-em-modal-btn" class="action-btn secondary small">Schließen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Disruptions Modal -->
+    <div id="disruption-modal" class="modal-overlay" style="display: none;">
+      <div class="modal-card glass-panel">
+        <h3 id="modal-title" style="font-size:1.15rem; font-weight:800;">Betriebslage</h3>
+        <div id="modal-body" class="mt-3"></div>
+        <div class="mt-4 text-right">
+          <button id="close-modal-btn" class="action-btn secondary small">Schließen</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Application Client Module -->
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

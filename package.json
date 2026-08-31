@@ -1,0 +1,21 @@
+{
+  "name": "koeln-live-monitor",
+  "version": "1.0.0",
+  "description": "Blitzschneller KVB & Köln Live-Monitor mit 100% echten Daten",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test_api_endpoints.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "hafas-client": "^6.2.2",
+    "puppeteer-core": "^25.9.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

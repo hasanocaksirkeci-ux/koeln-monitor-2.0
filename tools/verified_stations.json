@@ -1,0 +1,1637 @@
+[
+  {
+    "id": "900000702",
+    "name": "Köln Weiden West",
+    "short": "Weiden West",
+    "lat": 50.940926,
+    "lng": 6.815432,
+    "lines": [
+      "1"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000200",
+    "name": "Köln Junkersdorf",
+    "short": "Junkersdorf",
+    "lat": 50.937636,
+    "lng": 6.86837,
+    "lines": [
+      "1"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000187",
+    "name": "Köln Müngersdorf RheinEnergieSTADION",
+    "short": "Müngersdorf RheinEnergieSTADION",
+    "lat": 50.937591,
+    "lng": 6.87459,
+    "lines": [
+      "1"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000178",
+    "name": "Köln Braunsfeld Aachener Str./Gürtel",
+    "short": "Braunsfeld Aachener Str./Gürtel",
+    "lat": 50.936998,
+    "lng": 6.908552,
+    "lines": [
+      "13",
+      "1",
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000143",
+    "name": "Köln Lindenthal Universitätsstr.",
+    "short": "Lindenthal Universitätsstr.",
+    "lat": 50.936638,
+    "lng": 6.924651,
+    "lines": [
+      "1",
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000028",
+    "name": "Köln Moltkestr.",
+    "short": "Moltkestr.",
+    "lat": 50.936072,
+    "lng": 6.932607,
+    "lines": [
+      "1",
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000027",
+    "name": "Köln Rudolfplatz",
+    "short": "Rudolfplatz",
+    "lat": 50.936207,
+    "lng": 6.939097,
+    "lines": [
+      "7",
+      "12",
+      "1",
+      "15"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000002",
+    "name": "Köln Neumarkt",
+    "short": "Neumarkt",
+    "lat": 50.935667,
+    "lng": 6.948329,
+    "lines": [
+      "4",
+      "3",
+      "1",
+      "18",
+      "7",
+      "16",
+      "9"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000001",
+    "name": "Köln Heumarkt",
+    "short": "Heumarkt",
+    "lat": 50.935712,
+    "lng": 6.959269,
+    "lines": [
+      "1",
+      "5",
+      "9"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000802",
+    "name": "Köln Bf Deutz/Messe/LANXESS arena",
+    "short": "Bf Deutz/Messe/LANXESS arena",
+    "lat": 50.939569,
+    "lng": 6.978452,
+    "lines": [
+      "3",
+      "9",
+      "4"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000044",
+    "name": "Köln Deutz Technische Hochschule",
+    "short": "Deutz Technische Hochschule",
+    "lat": 50.936701,
+    "lng": 6.98532,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000512",
+    "name": "Köln Kalk Post",
+    "short": "Kalk Post",
+    "lat": 50.93751,
+    "lng": 6.99839,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000513",
+    "name": "Köln Kalk Kapelle",
+    "short": "Kalk Kapelle",
+    "lat": 50.938903,
+    "lng": 7.008458,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000518",
+    "name": "Köln Sportpark Höhenberg",
+    "short": "Sportpark Höhenberg",
+    "lat": 50.941753,
+    "lng": 7.029214,
+    "lines": [
+      "101",
+      "151",
+      "152"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000540",
+    "name": "Köln Merheim",
+    "short": "Merheim",
+    "lat": 50.944072,
+    "lng": 7.0481,
+    "lines": [
+      "158",
+      "101",
+      "157"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000547",
+    "name": "Köln Brück Mauspfad",
+    "short": "Brück Mauspfad",
+    "lat": 50.949007,
+    "lng": 7.079239,
+    "lines": [
+      "154",
+      "101"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000668",
+    "name": "Bergisch Gladbach Refrath Lustheide",
+    "short": "Refrath Lustheide",
+    "lat": 50.951587,
+    "lng": 7.102575,
+    "lines": [
+      "451",
+      "101"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000669",
+    "name": "Bergisch Gladbach Refrath",
+    "short": "Refrath",
+    "lat": 50.95396,
+    "lng": 7.115582,
+    "lines": [
+      "101",
+      "452",
+      "451"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000665",
+    "name": "Bergisch Gladbach Bensberg",
+    "short": "Bensberg",
+    "lat": 50.963821,
+    "lng": 7.161149,
+    "lines": [
+      "101",
+      "400",
+      "455",
+      "423",
+      "421",
+      "227",
+      "420",
+      "SB40",
+      "454"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000940",
+    "name": "Köln Görlinger-Zentrum",
+    "short": "Görlinger-Zentrum",
+    "lat": 50.980559,
+    "lng": 6.870357,
+    "lines": [
+      "3"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000291",
+    "name": "Köln Bocklemünd",
+    "short": "Bocklemünd",
+    "lat": 50.969368,
+    "lng": 6.87282,
+    "lines": [
+      "4",
+      "3"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000264",
+    "name": "Köln Akazienweg",
+    "short": "Akazienweg",
+    "lat": 50.960513,
+    "lng": 6.894241,
+    "lines": [
+      "3",
+      "4"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000262",
+    "name": "Köln Rochusplatz",
+    "short": "Rochusplatz",
+    "lat": 50.956972,
+    "lng": 6.902439,
+    "lines": [
+      "3",
+      "4"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000255",
+    "name": "Köln Leyendeckerstr.",
+    "short": "Leyendeckerstr.",
+    "lat": 50.954464,
+    "lng": 6.909927,
+    "lines": [
+      "3",
+      "4"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000251",
+    "name": "Köln Ehrenfeld Venloer Str./Gürtel",
+    "short": "Ehrenfeld Venloer Str./Gürtel",
+    "lat": 50.950167,
+    "lng": 6.916705,
+    "lines": [
+      "3",
+      "4",
+      "13"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000237",
+    "name": "Köln Körnerstr.",
+    "short": "Körnerstr.",
+    "lat": 50.948324,
+    "lng": 6.920292,
+    "lines": [
+      "4",
+      "3"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000236",
+    "name": "Köln Piusstr.",
+    "short": "Piusstr.",
+    "lat": 50.945987,
+    "lng": 6.92591,
+    "lines": [
+      "4",
+      "3"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000030",
+    "name": "Köln Friesenplatz",
+    "short": "Friesenplatz",
+    "lat": 50.940548,
+    "lng": 6.939951,
+    "lines": [
+      "5",
+      "3",
+      "15",
+      "12",
+      "4"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000007",
+    "name": "Köln Appellhofplatz",
+    "short": "Appellhofplatz",
+    "lat": 50.94018,
+    "lng": 6.950477,
+    "lines": [
+      "16",
+      "4",
+      "18",
+      "3",
+      "5"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000011",
+    "name": "Köln Severinstr.",
+    "short": "Severinstr.",
+    "lat": 50.929177,
+    "lng": 6.957255,
+    "lines": [
+      "3",
+      "4",
+      "17"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000569",
+    "name": "Köln Buchforst Waldecker Str.",
+    "short": "Buchforst Waldecker Str.",
+    "lat": 50.951003,
+    "lng": 7.005006,
+    "lines": [
+      "3"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000578",
+    "name": "Köln Buchheim Herler Str.",
+    "short": "Buchheim Herler Str.",
+    "lat": 50.957996,
+    "lng": 7.02516,
+    "lines": [
+      "3",
+      "18",
+      "13"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000583",
+    "name": "Köln Holweide Vischeringstr.",
+    "short": "Holweide Vischeringstr.",
+    "lat": 50.967093,
+    "lng": 7.039471,
+    "lines": [
+      "13",
+      "3"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000595",
+    "name": "Köln Dellbrück Hauptstr.",
+    "short": "Dellbrück Hauptstr.",
+    "lat": 50.974806,
+    "lng": 7.074825,
+    "lines": [
+      "3",
+      "13"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000596",
+    "name": "Köln Dellbrück Thielenbruch",
+    "short": "Dellbrück Thielenbruch",
+    "lat": 50.97806,
+    "lng": 7.085459,
+    "lines": [
+      "3",
+      "13"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000663",
+    "name": "Leverkusen Schlebusch",
+    "short": "Leverkusen Schlebusch",
+    "lat": 51.018907,
+    "lng": 7.044577,
+    "lines": [
+      "4"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000903",
+    "name": "Köln Ossendorf Sparkasse am Butzweilerhof",
+    "short": "Ossendorf Sparkasse am Butzweilerhof",
+    "lat": 50.985009,
+    "lng": 6.887787,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000272",
+    "name": "Köln Ossendorf Rektor-Klein-Str.",
+    "short": "Ossendorf Rektor-Klein-Str.",
+    "lat": 50.974186,
+    "lng": 6.90465,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000274",
+    "name": "Köln Ossendorf Alter Flughafen Butzweilerhof",
+    "short": "Ossendorf Alter Flughafen Butzweilerhof",
+    "lat": 50.977602,
+    "lng": 6.89745,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000249",
+    "name": "Köln Neuehrenfeld Iltisstr.",
+    "short": "Neuehrenfeld Iltisstr.",
+    "lat": 50.965215,
+    "lng": 6.912022,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000247",
+    "name": "Köln Neuehrenfeld Lenauplatz",
+    "short": "Neuehrenfeld Lenauplatz",
+    "lat": 50.958554,
+    "lng": 6.918323,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000246",
+    "name": "Köln Neuehrenfeld Nußbaumerstr.",
+    "short": "Neuehrenfeld Nußbaumerstr.",
+    "lat": 50.956999,
+    "lng": 6.923582,
+    "lines": [
+      "13",
+      "5"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000245",
+    "name": "Köln Neuehrenfeld Subbelrather Str./Gürtel",
+    "short": "Neuehrenfeld Subbelrather Str./Gürtel",
+    "lat": 50.95467,
+    "lng": 6.921236,
+    "lines": [
+      "5",
+      "13"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000239",
+    "name": "Köln Ehrenfeld Liebigstr.",
+    "short": "Ehrenfeld Liebigstr.",
+    "lat": 50.952315,
+    "lng": 6.924148,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000032",
+    "name": "Köln Christophstr./Mediapark",
+    "short": "Christophstr./Mediapark",
+    "lat": 50.944638,
+    "lng": 6.94236,
+    "lines": [
+      "15",
+      "12"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000006",
+    "name": "Köln Rathaus",
+    "short": "Rathaus",
+    "lat": 50.938328,
+    "lng": 6.959898,
+    "lines": [
+      "5"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900527000",
+    "name": "Frechen Benzelrath Am Hang",
+    "short": "Benzelrath Am Hang",
+    "lat": 50.902128,
+    "lng": 6.790263,
+    "lines": [
+      "964",
+      "976",
+      "960"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000710",
+    "name": "Frechen Rathaus",
+    "short": "Rathaus",
+    "lat": 50.909437,
+    "lng": 6.806452,
+    "lines": [
+      "7"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900002612",
+    "name": "Frechen Am alten Bahnhof",
+    "short": "Am alten Bahnhof",
+    "lat": 50.912115,
+    "lng": 6.822642,
+    "lines": [
+      "965"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000235",
+    "name": "Köln Marsdorf",
+    "short": "Marsdorf",
+    "lat": 50.917473,
+    "lng": 6.85823,
+    "lines": [
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000713",
+    "name": "Köln Marsdorf Haus Vorst",
+    "short": "Marsdorf Haus Vorst",
+    "lat": 50.915666,
+    "lng": 6.848423,
+    "lines": [
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000234",
+    "name": "Köln Marsdorf Stüttgenhof",
+    "short": "Marsdorf Stüttgenhof",
+    "lat": 50.919981,
+    "lng": 6.876604,
+    "lines": [
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000172",
+    "name": "Köln Lindenthal Brahmsstr.",
+    "short": "Lindenthal Brahmsstr.",
+    "lat": 50.925968,
+    "lng": 6.898241,
+    "lines": [
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000144",
+    "name": "Köln Lindenthal Melaten",
+    "short": "Lindenthal Melaten",
+    "lat": 50.936746,
+    "lng": 6.916714,
+    "lines": [
+      "1",
+      "7"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000438",
+    "name": "Köln Poll Salmstr.",
+    "short": "Poll Salmstr.",
+    "lat": 50.915981,
+    "lng": 6.992808,
+    "lines": [
+      "107",
+      "159"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000450",
+    "name": "Köln Westhoven Berliner Str.",
+    "short": "Westhoven Berliner Str.",
+    "lat": 50.901355,
+    "lng": 7.025447,
+    "lines": [
+      "107"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000451",
+    "name": "Köln Ensen Gilgaustr.",
+    "short": "Ensen Gilgaustr.",
+    "lat": 50.89954,
+    "lng": 7.031156,
+    "lines": [
+      "107"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000466",
+    "name": "Köln Porz Steinstr.",
+    "short": "Porz Steinstr.",
+    "lat": 50.8918,
+    "lng": 7.056262,
+    "lines": [
+      "107",
+      "154"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000467",
+    "name": "Köln Porz Markt",
+    "short": "Porz Markt",
+    "lat": 50.884995,
+    "lng": 7.059148,
+    "lines": [
+      "154",
+      "151",
+      "107",
+      "161",
+      "AST 188",
+      "160",
+      "152",
+      "162"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000486",
+    "name": "Köln Zündorf",
+    "short": "Zündorf",
+    "lat": 50.866091,
+    "lng": 7.049062,
+    "lines": [
+      "107",
+      "117"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000166",
+    "name": "Köln Sülz Hermeskeiler Platz",
+    "short": "Sülz Hermeskeiler Platz",
+    "lat": 50.917158,
+    "lng": 6.907293,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000155",
+    "name": "Köln Sülz Uniklinik Köln",
+    "short": "Sülz Uniklinik Köln",
+    "lat": 50.922228,
+    "lng": 6.921676,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000865",
+    "name": "Köln Dasselstr./ Süd Bf",
+    "short": "Dasselstr./ Süd Bf",
+    "lat": 50.928287,
+    "lng": 6.935771,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000024",
+    "name": "Köln Zülpicher Platz",
+    "short": "Zülpicher Platz",
+    "lat": 50.931137,
+    "lng": 6.940724,
+    "lines": [
+      "12",
+      "9",
+      "15"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000521",
+    "name": "Köln Vingst",
+    "short": "Vingst",
+    "lat": 50.932782,
+    "lng": 7.02169,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000533",
+    "name": "Köln Ostheim",
+    "short": "Ostheim",
+    "lat": 50.929231,
+    "lng": 7.041242,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000565",
+    "name": "Köln Neubrück Rösrather Str.",
+    "short": "Neubrück Rösrather Str.",
+    "lat": 50.928862,
+    "lng": 7.060829,
+    "lines": [
+      "179",
+      "157"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000557",
+    "name": "Köln Rath/Heumar Königsforst",
+    "short": "Rath/Heumar Königsforst",
+    "lat": 50.919729,
+    "lng": 7.096903,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000417",
+    "name": "Köln Merkenich",
+    "short": "Merkenich",
+    "lat": 51.028274,
+    "lng": 6.94788,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000370",
+    "name": "Köln Niehl Fordwerke Nord",
+    "short": "Niehl Fordwerke Nord",
+    "lat": 51.017361,
+    "lng": 6.95543,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000337",
+    "name": "Köln Weidenpesch Scheibenstr.",
+    "short": "Weidenpesch Scheibenstr.",
+    "lat": 50.985701,
+    "lng": 6.94627,
+    "lines": [
+      "12",
+      "15"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000362",
+    "name": "Köln Longerich Wilhelm-Sollmann-Str.",
+    "short": "Longerich Wilhelm-Sollmann-Str.",
+    "lat": 50.992003,
+    "lng": 6.941102,
+    "lines": [
+      "12",
+      "15"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000304",
+    "name": "Köln Florastr.",
+    "short": "Florastr.",
+    "lat": 50.964505,
+    "lng": 6.953696,
+    "lines": [
+      "15",
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000305",
+    "name": "Köln Lohsestr.",
+    "short": "Lohsestr.",
+    "lat": 50.958104,
+    "lng": 6.955296,
+    "lines": [
+      "12",
+      "15"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000035",
+    "name": "Köln Ebertplatz",
+    "short": "Ebertplatz",
+    "lat": 50.950634,
+    "lng": 6.958945,
+    "lines": [
+      "16",
+      "15",
+      "18",
+      "12"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000036",
+    "name": "Köln Hansaring",
+    "short": "Hansaring",
+    "lat": 50.948764,
+    "lng": 6.951628,
+    "lines": [
+      "12",
+      "15"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000023",
+    "name": "Köln Barbarossaplatz",
+    "short": "Barbarossaplatz",
+    "lat": 50.92897,
+    "lng": 6.94218,
+    "lines": [
+      "12",
+      "15",
+      "18",
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000021",
+    "name": "Köln Eifelplatz",
+    "short": "Eifelplatz",
+    "lat": 50.92328,
+    "lng": 6.943493,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000052",
+    "name": "Köln Zollstock Pohligstr.",
+    "short": "Zollstock Pohligstr.",
+    "lat": 50.916934,
+    "lng": 6.941659,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000053",
+    "name": "Köln Zollstock Herthastr.",
+    "short": "Zollstock Herthastr.",
+    "lat": 50.912924,
+    "lng": 6.940796,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000054",
+    "name": "Köln Zollstock Gottesweg",
+    "short": "Zollstock Gottesweg",
+    "lat": 50.910363,
+    "lng": 6.941569,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000057",
+    "name": "Köln Zollstock Südfriedhof",
+    "short": "Zollstock Südfriedhof",
+    "lat": 50.900951,
+    "lng": 6.944122,
+    "lines": [
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000160",
+    "name": "Köln Klettenberg Sülzgürtel",
+    "short": "Klettenberg Sülzgürtel",
+    "lat": 50.912358,
+    "lng": 6.923941,
+    "lines": [
+      "13",
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000164",
+    "name": "Köln Sülz Zülpicher Str./Gürtel",
+    "short": "Sülz Zülpicher Str./Gürtel",
+    "lat": 50.920332,
+    "lng": 6.915276,
+    "lines": [
+      "9",
+      "13"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000303",
+    "name": "Köln Neusser Str./Gürtel",
+    "short": "Neusser Str./Gürtel",
+    "lat": 50.972334,
+    "lng": 6.951358,
+    "lines": [
+      "15",
+      "13",
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000317",
+    "name": "Köln Amsterdamer Str./Gürtel",
+    "short": "Amsterdamer Str./Gürtel",
+    "lat": 50.970851,
+    "lng": 6.969067,
+    "lines": [
+      "13",
+      "16"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000315",
+    "name": "Köln Slabystr.",
+    "short": "Slabystr.",
+    "lat": 50.966527,
+    "lng": 6.987891,
+    "lines": [
+      "13",
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000314",
+    "name": "Köln Riehl Boltensternstr.",
+    "short": "Riehl Boltensternstr.",
+    "lat": 50.962392,
+    "lng": 6.980942,
+    "lines": [
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000570",
+    "name": "Köln Mülheim Wiener Platz",
+    "short": "Mülheim Wiener Platz",
+    "lat": 50.961799,
+    "lng": 7.004206,
+    "lines": [
+      "4",
+      "13",
+      "18"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000572",
+    "name": "Köln Bf Mülheim",
+    "short": "Bf Mülheim",
+    "lat": 50.957978,
+    "lng": 7.013285,
+    "lines": [
+      "18",
+      "13"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000385",
+    "name": "Köln Chorweiler",
+    "short": "Chorweiler",
+    "lat": 51.021119,
+    "lng": 6.89798,
+    "lines": [
+      "15"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000384",
+    "name": "Köln Heimersdorf",
+    "short": "Heimersdorf",
+    "lat": 51.011968,
+    "lng": 6.906772,
+    "lines": [
+      "15"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000358",
+    "name": "Köln Longerich S-Bahn",
+    "short": "Longerich S-Bahn",
+    "lat": 50.997729,
+    "lng": 6.901549,
+    "lines": [
+      "125",
+      "S6",
+      "139",
+      "127",
+      "S11",
+      "121"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000022",
+    "name": "Köln Eifelstr.",
+    "short": "Eifelstr.",
+    "lat": 50.926651,
+    "lng": 6.945686,
+    "lines": [
+      "15",
+      "16",
+      "12"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000018",
+    "name": "Köln Chlodwigplatz",
+    "short": "Chlodwigplatz",
+    "lat": 50.921159,
+    "lng": 6.959691,
+    "lines": [
+      "17",
+      "15",
+      "16"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000017",
+    "name": "Köln Ubierring",
+    "short": "Ubierring",
+    "lat": 50.922453,
+    "lng": 6.965624,
+    "lines": [
+      "15",
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000343",
+    "name": "Köln Niehl Sebastianstr.",
+    "short": "Niehl Sebastianstr.",
+    "lat": 50.985225,
+    "lng": 6.961399,
+    "lines": [
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000034",
+    "name": "Köln Reichenspergerplatz",
+    "short": "Reichenspergerplatz",
+    "lat": 50.954311,
+    "lng": 6.96486,
+    "lines": [
+      "16",
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000313",
+    "name": "Köln Zoo/Flora",
+    "short": "Zoo/Flora",
+    "lat": 50.957835,
+    "lng": 6.974245,
+    "lines": [
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000009",
+    "name": "Köln Breslauer Platz/Hbf",
+    "short": "Breslauer Platz/Hbf",
+    "lat": 50.943542,
+    "lng": 6.959889,
+    "lines": [
+      "18",
+      "16"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000752",
+    "name": "Köln Dom/Hbf",
+    "short": "Dom/Hbf",
+    "lat": 50.941789,
+    "lng": 6.957219,
+    "lines": [
+      "18",
+      "16",
+      "5"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000019",
+    "name": "Köln Ulrepforte",
+    "short": "Ulrepforte",
+    "lat": 50.923972,
+    "lng": 6.952086,
+    "lines": [
+      "15",
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000076",
+    "name": "Köln Marienburg Bayenthalgürtel",
+    "short": "Marienburg Bayenthalgürtel",
+    "lat": 50.906938,
+    "lng": 6.97776,
+    "lines": [
+      "16",
+      "17"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000897",
+    "name": "Köln Marienburg Heinrich-Lübke-Ufer",
+    "short": "Marienburg Heinrich-Lübke-Ufer",
+    "lat": 50.899908,
+    "lng": 6.984771,
+    "lines": [
+      "16",
+      "17"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000106",
+    "name": "Köln Rodenkirchen Bf",
+    "short": "Rodenkirchen Bf",
+    "lat": 50.890901,
+    "lng": 6.990057,
+    "lines": [
+      "16",
+      "17"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000124",
+    "name": "Köln Sürth Bf",
+    "short": "Sürth Bf",
+    "lat": 50.864086,
+    "lng": 7.003433,
+    "lines": [
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000134",
+    "name": "Köln Godorf Bf",
+    "short": "Godorf Bf",
+    "lat": 50.84751,
+    "lng": 6.978533,
+    "lines": [
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000742",
+    "name": "Wesseling Nord",
+    "short": "Wesseling Nord",
+    "lat": 50.831401,
+    "lng": 6.970937,
+    "lines": [
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000741",
+    "name": "Wesseling Wesseling",
+    "short": "Wesseling Wesseling",
+    "lat": 50.822655,
+    "lng": 6.979926,
+    "lines": [
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000894",
+    "name": "Köln Kartäuserhof",
+    "short": "Kartäuserhof",
+    "lat": 50.92497,
+    "lng": 6.958469,
+    "lines": [
+      "17"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000020",
+    "name": "Köln Bonner Wall",
+    "short": "Bonner Wall",
+    "lat": 50.91617,
+    "lng": 6.961031,
+    "lines": [
+      "17"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000026",
+    "name": "Köln Neustadt-Süd Eifelwall/Stadtarchiv",
+    "short": "Neustadt-Süd Eifelwall/Stadtarchiv",
+    "lat": 50.924781,
+    "lng": 6.937039,
+    "lines": [
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000167",
+    "name": "Köln Klettenberg Klettenbergpark",
+    "short": "Klettenberg Klettenbergpark",
+    "lat": 50.907873,
+    "lng": 6.91933,
+    "lines": [
+      "18"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000730",
+    "name": "Hürth Efferen",
+    "short": "Efferen",
+    "lat": 50.894416,
+    "lng": 6.903985,
+    "lines": [
+      "118",
+      "712"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000733",
+    "name": "Hürth-Hermülheim",
+    "short": "-Hermülheim",
+    "lat": 50.881022,
+    "lng": 6.894654,
+    "lines": [
+      "713",
+      "118",
+      "979",
+      "714",
+      "960",
+      "720"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000732",
+    "name": "Hürth Hermülheim Kiebitzweg",
+    "short": "Hermülheim Kiebitzweg",
+    "lat": 50.888069,
+    "lng": 6.897126,
+    "lines": [
+      "118"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000731",
+    "name": "Hürth Fischenich",
+    "short": "Fischenich",
+    "lat": 50.864482,
+    "lng": 6.897774,
+    "lines": [
+      "118",
+      "720"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000734",
+    "name": "Brühl Nord",
+    "short": "Nord",
+    "lat": 50.834278,
+    "lng": 6.901639,
+    "lines": [
+      "118",
+      "930",
+      "709",
+      "935",
+      "702",
+      "704",
+      "703",
+      "701"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000735",
+    "name": "Brühl Mitte",
+    "short": "Mitte",
+    "lat": 50.82892,
+    "lng": 6.899023,
+    "lines": [
+      "709",
+      "118",
+      "PHL",
+      "935",
+      "702",
+      "708",
+      "701",
+      "704",
+      "930",
+      "990",
+      "985",
+      "703"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000737",
+    "name": "Brühl Badorf",
+    "short": "Badorf",
+    "lat": 50.812991,
+    "lng": 6.900354,
+    "lines": [
+      "118"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900901100",
+    "name": "Gewerbepark Bornheim-Süd",
+    "short": "Gewerbepark Bornheim-Süd",
+    "lat": 50.760719,
+    "lng": 7.027632,
+    "lines": [
+      "818"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000687",
+    "name": "Bonn Hbf",
+    "short": "Hbf",
+    "lat": 50.732008,
+    "lng": 7.097127,
+    "lines": [
+      "16"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000003",
+    "name": "Köln Deutz Deutzer Freiheit",
+    "short": "Deutzer Freiheit",
+    "lat": 50.93605,
+    "lng": 6.97405,
+    "lines": [
+      "1",
+      "7",
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000045",
+    "name": "Köln Deutz Suevenstr.",
+    "short": "Suevenstr.",
+    "lat": 50.93282,
+    "lng": 6.97825,
+    "lines": [
+      "3",
+      "4"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000800",
+    "name": "Köln Hbf",
+    "short": "Köln Hbf",
+    "lat": 50.94295,
+    "lng": 6.95855,
+    "lines": [
+      "S6",
+      "S11",
+      "S12",
+      "S19",
+      "RE1",
+      "RE5",
+      "RE6",
+      "RE7",
+      "RE8",
+      "RE9",
+      "RB25",
+      "RB26",
+      "RB27",
+      "RB48",
+      "ICE",
+      "IC"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000801",
+    "name": "Köln Messe/Deutz (Bf)",
+    "short": "Messe/Deutz (Bf)",
+    "lat": 50.9408,
+    "lng": 6.9752,
+    "lines": [
+      "S6",
+      "S11",
+      "S12",
+      "S19",
+      "RE1",
+      "RE5",
+      "RE6",
+      "RE7",
+      "RE8",
+      "RE9",
+      "RB25",
+      "RB26",
+      "RB27",
+      "RB48",
+      "ICE",
+      "IC"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000805",
+    "name": "Köln Trimbornstr.",
+    "short": "Trimbornstr.",
+    "lat": 50.9355,
+    "lng": 6.9942,
+    "lines": [
+      "S12",
+      "S19",
+      "RB25"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000806",
+    "name": "Köln Buchforst S-Bahn",
+    "short": "Buchforst",
+    "lat": 50.9502,
+    "lng": 7.0015,
+    "lines": [
+      "S6",
+      "S11"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000807",
+    "name": "Köln Mülheim (Bf)",
+    "short": "Bf Mülheim",
+    "lat": 50.9592,
+    "lng": 7.0145,
+    "lines": [
+      "13",
+      "18"
+    ],
+    "isUnderground": true
+  },
+  {
+    "id": "900000808",
+    "name": "Köln Ehrenfeld (Bf)",
+    "short": "Bf Ehrenfeld",
+    "lat": 50.9525,
+    "lng": 6.9185,
+    "lines": [
+      "S12",
+      "S19",
+      "RE1",
+      "RE8",
+      "RE9",
+      "RB27",
+      "RB38"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000809",
+    "name": "Köln Süd (Bf)",
+    "short": "Bf Süd",
+    "lat": 50.9272,
+    "lng": 6.9358,
+    "lines": [
+      "9"
+    ],
+    "isUnderground": false
+  },
+  {
+    "id": "900000810",
+    "name": "Köln West (Bf)",
+    "short": "Bf West",
+    "lat": 50.9418,
+    "lng": 6.9365,
+    "lines": [
+      "3",
+      "4",
+      "5"
+    ],
+    "isUnderground": false
+  }
+]
