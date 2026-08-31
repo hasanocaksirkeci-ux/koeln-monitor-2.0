@@ -2357,4 +2357,65 @@ button svg { pointer-events: none; }
   }
 }
 
+/* ==========================================================================
+   UNIFIED DATA STATUS BADGES & RESILIENCE STYLES
+   ========================================================================== */
+.data-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-full, 9999px);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+.data-status-badge .status-dot {
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.data-status-badge .status-sub {
+  font-size: 0.6rem;
+  font-weight: 500;
+  opacity: 0.85;
+  text-transform: none;
+  margin-left: 2px;
+}
+
+.data-status-badge.status-live {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.data-status-badge.status-loading {
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: #38bdf8;
+}
+
+.data-status-badge.status-stale {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.data-status-badge.status-unavailable {
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
+.data-status-badge.status-error {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fb7185;
+}
+
 

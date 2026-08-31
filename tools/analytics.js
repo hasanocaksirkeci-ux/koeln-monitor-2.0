@@ -14,20 +14,35 @@ export async function computeNetworkAnalytics() {
     return lastAnalyticsCache.data;
   }
 
+  const nowIso = new Date().toISOString();
+
   try {
     const radarData = await getLiveRadar();
     const vehicles = radarData.vehicles || [];
 
     if (vehicles.length === 0) {
+      const prevData = lastAnalyticsCache.data;
+      if (prevData && prevData.punctualityScore !== null) {
+        return {
+          ...prevData,
+          status: 'stale',
+          isStale: true,
+          timestamp: nowIso,
+          error: 'Aktuell keine aktiven Fahrzeuge auf dem Live-Radar erfasst'
+        };
+      }
+
       return {
-        timestamp: new Date().toISOString(),
-        punctualityScore: 92.0,
+        timestamp: nowIso,
+        status: 'unavailable',
+        punctualityScore: null,
         totalTracked: 0,
         onTimeCount: 0,
         delayedCount: 0,
-        averageDelayMinutes: 0,
+        averageDelayMinutes: null,
         linePerformance: [],
-        history: getPunctualityHistory(12)
+        history: getPunctualityHistory(12),
+        message: 'Keine aktiven Fahrzeuge erfasst'
       };
     }
 
@@ -87,7 +102,9 @@ export async function computeNetworkAnalytics() {
       });
 
     const snapshot = {
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      status: 'live',
+      lastSuccessfulUpdate: nowIso,
       punctualityScore,
       totalTracked,
       onTimeCount,
@@ -114,16 +131,26 @@ export async function computeNetworkAnalytics() {
     return payload;
   } catch (err) {
     console.error('Error computing analytics:', err.message);
+    if (lastAnalyticsCache.data) {
+      return {
+        ...lastAnalyticsCache.data,
+        status: 'stale',
+        isStale: true,
+        error: err.message
+      };
+    }
     return {
-      timestamp: new Date().toISOString(),
-      punctualityScore: 90.0,
+      timestamp: nowIso,
+      status: 'error',
+      punctualityScore: null,
       totalTracked: 0,
       onTimeCount: 0,
       delayedCount: 0,
-      averageDelayMinutes: 0,
+      averageDelayMinutes: null,
       linePerformance: [],
       history: getPunctualityHistory(12),
-      error: err.message
+      error: err.message,
+      lastSuccessfulUpdate: null
     };
   }
 }

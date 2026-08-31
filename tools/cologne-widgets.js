@@ -51,11 +51,29 @@ export async function getCologneWidgets({ force = false } = {}) {
     fetchWeatherData()
   ]);
 
+  const prevPegel = widgetsCache?.pegel?.status === 'live' ? widgetsCache.pegel : null;
+  const prevParking = widgetsCache?.parking?.status === 'live' ? widgetsCache.parking : null;
+  const prevWeather = widgetsCache?.weather?.status === 'live' ? widgetsCache.weather : null;
+
+  const nowIso = new Date().toISOString();
+
   const result = {
-    timestamp: new Date().toISOString(),
-    pegel: pegel.status === 'fulfilled' ? pegel.value : getFallbackPegel(),
-    parking: parking.status === 'fulfilled' ? parking.value : getFallbackParking(),
-    weather: weather.status === 'fulfilled' ? weather.value : getFallbackWeather()
+    timestamp: nowIso,
+    pegel: pegel.status === 'fulfilled' 
+      ? { ...pegel.value, status: 'live', lastSuccessfulUpdate: nowIso }
+      : (prevPegel 
+          ? { ...prevPegel, status: 'stale', isStale: true, error: pegel.reason?.message }
+          : { status: 'error', value: null, valueCm: null, error: pegel.reason?.message || 'WSV PegelOnline nicht erreichbar', timestamp: nowIso, lastSuccessfulUpdate: null }),
+    parking: parking.status === 'fulfilled'
+      ? { ...parking.value, status: 'live', lastSuccessfulUpdate: nowIso }
+      : (prevParking
+          ? { ...prevParking, status: 'stale', isStale: true, error: parking.reason?.message }
+          : { status: 'error', totalFree: null, totalCapacity: null, count: 0, garages: [], error: parking.reason?.message || 'Parkleitsystem nicht erreichbar', timestamp: nowIso, lastSuccessfulUpdate: null }),
+    weather: weather.status === 'fulfilled'
+      ? { ...weather.value, status: 'live', lastSuccessfulUpdate: nowIso }
+      : (prevWeather
+          ? { ...prevWeather, status: 'stale', isStale: true, error: weather.reason?.message }
+          : { status: 'error', temp: null, feelsLike: null, condition: null, icon: null, hourly: [], error: weather.reason?.message || 'Wetterdienst nicht erreichbar', timestamp: nowIso, lastSuccessfulUpdate: null })
   };
 
   widgetsCache = result;
@@ -64,7 +82,7 @@ export async function getCologneWidgets({ force = false } = {}) {
 }
 
 /**
- * 1. Fetch WSV PegelOnline for Cologne
+ * 1. Fetch WSV PegelOnline for Cologne (6s Timeout)
  */
 async function fetchPegelOnline() {
   const stationUuid = 'a6ee8177-107b-47dd-bcfd-30960ccc6e9c'; // KÖLN Rhein
@@ -72,11 +90,11 @@ async function fetchPegelOnline() {
   const historyUrl = `https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/${stationUuid}/W/measurements.json?hours=4`;
 
   const [currRes, histRes] = await Promise.all([
-    fetch(currentUrl, { signal: AbortSignal.timeout(4000) }),
-    fetch(historyUrl, { signal: AbortSignal.timeout(4000) })
+    fetch(currentUrl, { signal: AbortSignal.timeout(6000) }),
+    fetch(historyUrl, { signal: AbortSignal.timeout(6000) })
   ]);
 
-  if (!currRes.ok) throw new Error(`Pegel current error ${currRes.status}`);
+  if (!currRes.ok) throw new Error(`WSV PegelOnline HTTP ${currRes.status}`);
 
   const curr = await currRes.json();
   let hist = [];
@@ -132,12 +150,12 @@ async function fetchPegelOnline() {
 }
 
 /**
- * 2. Fetch Cologne Parking Data from Stadt Köln Open Data
+ * 2. Fetch Cologne Parking Data from Stadt Köln Open Data (6s Timeout)
  */
 async function fetchParkingData() {
   const url = 'https://www.stadt-koeln.de/externe-dienste/open-data/parking.php';
-  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-  if (!res.ok) throw new Error(`Parking API error ${res.status}`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`Stadt Köln Parking HTTP ${res.status}`);
 
   const data = await res.json();
   const features = data.features || [];
@@ -148,35 +166,22 @@ async function fetchParkingData() {
 
   for (const f of features) {
     const attr = f.attributes || {};
-    const name = (attr.parkhaus || '').trim();
-    const id = attr.identifier || '';
-    const free = typeof attr.kapazitaet === 'number' ? attr.kapazitaet : -1;
-    const rawTrend = attr.tendenz;
-
-    // Filter out invalid/closed or unannounced garages
-    if (!name || name === 'null' || free < 0) continue;
-
-    const estimatedTotal = GARAGE_CAPACITIES[id] || (free > 300 ? free + 150 : Math.max(200, Math.round(free * 1.6)));
-    const occupancyPercent = estimatedTotal > 0 ? Math.min(100, Math.max(0, Math.round(((estimatedTotal - free) / estimatedTotal) * 100))) : 50;
-
-    let status = 'green';
-    if (free === 0 || occupancyPercent > 92) status = 'red';
-    else if (free < 30 || occupancyPercent > 75) status = 'yellow';
-
-    let trend = 'steady';
-    if (rawTrend === 1) trend = 'rising'; // more free spots
-    else if (rawTrend === 2) trend = 'falling'; // fewer free spots
-
-    // Identify quarter / zone
-    let quarter = 'Zentrum';
-    if (/dom|hauptbahnhof|martin|philharmonie/i.test(name)) quarter = 'Dom / Hbf';
-    else if (/neumarkt|schildergasse|kaufhof|karstadt|grzenich|guerzenich|gürzenich|lungengasse|wolfsstra/i.test(name)) quarter = 'Neumarkt';
-    else if (/rudolfplatz|ring|wallgasse|mediapark|maastrichter|klapperhof|farina|quincy/i.test(name)) quarter = 'Ringe & Altstadt';
-    else if (/arena|deutz|arcaden/i.test(name)) quarter = 'Deutz / Arena';
-    else if (/stadion|marsdorf/i.test(name)) quarter = 'P+R / Westen';
+    const id = String(attr.identifier || '');
+    const name = attr.name || 'Parkhaus';
+    const quarter = attr.parking_quarter || 'Köln';
+    const free = typeof attr.free_spaces === 'number' ? Math.max(0, attr.free_spaces) : 0;
+    const estimatedTotal = GARAGE_CAPACITIES[id] || (attr.capacity || Math.max(free + 50, 200));
 
     totalFree += free;
     totalCap += estimatedTotal;
+
+    const occupancyPercent = estimatedTotal > 0 ? Math.min(100, Math.max(0, Math.round(((estimatedTotal - free) / estimatedTotal) * 100))) : 50;
+    
+    let status = 'open';
+    if (attr.status && attr.status.toLowerCase().includes('geschlossen')) status = 'closed';
+    else if (free <= 5) status = 'full';
+
+    const trend = attr.trend || 'steady';
 
     garages.push({
       id,
@@ -210,13 +215,13 @@ async function fetchParkingData() {
 }
 
 /**
- * 3. Fetch Weather from Open-Meteo
+ * 3. Fetch Weather from Open-Meteo (6s Timeout)
  */
 async function fetchWeatherData() {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=50.9375&longitude=6.9603&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,precipitation_probability,precipitation,weather_code&timezone=Europe%2FBerlin&forecast_hours=7';
   
-  const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-  if (!res.ok) throw new Error(`Weather error ${res.status}`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`Open-Meteo Weather HTTP ${res.status}`);
 
   const data = await res.json();
   const curr = data.current || {};
@@ -279,42 +284,4 @@ function getWeatherDescription(code) {
     case 99: return { label: 'Gewitter', icon: '⛈️' };
     default: return { label: 'Heiter', icon: '🌤️' };
   }
-}
-
-function getFallbackPegel() {
-  return {
-    station: 'Köln',
-    water: 'Rhein (km 688,0)',
-    value: 112,
-    valueCm: 112,
-    trend: 'steady',
-    trendLabel: 'Gleichbleibend',
-    status: 'normal',
-    statusText: 'Normaler Wasserstand',
-    warningMarks: { marke1: 620, marke2: 830 },
-    gaugePercentage: 15
-  };
-}
-
-function getFallbackParking() {
-  return {
-    totalFree: 2500,
-    totalCapacity: 8000,
-    availablePercent: 31,
-    count: 20,
-    garages: []
-  };
-}
-
-function getFallbackWeather() {
-  return {
-    city: 'Köln',
-    temp: 22,
-    feelsLike: 22,
-    humidity: 55,
-    windSpeed: 8,
-    condition: 'Heiter',
-    icon: '🌤️',
-    hourly: []
-  };
 }

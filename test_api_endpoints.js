@@ -101,9 +101,9 @@ async function runTests() {
 
   // 10. City Widgets (Pegel, Parking, Weather)
   await testEndpoint('Cologne City Widgets', `${BASE_URL}/api/widgets`, data => {
-    if (!data.pegel || (!data.pegel.value && !data.pegel.valueCm)) return 'Pegel data missing or invalid';
-    if (!data.parking || data.parking.totalFree <= 0) return 'Parking data missing';
-    if (!data.weather || data.weather.temp === undefined) return 'Weather data missing';
+    if (!data.pegel || (!data.pegel.value && !data.pegel.valueCm && data.pegel.status !== 'error')) return 'Pegel data missing or invalid';
+    if (!data.parking || (!data.parking.garages && data.parking.status !== 'error')) return 'Parking data missing';
+    if (!data.weather || (data.weather.temp === undefined && data.weather.status !== 'error')) return 'Weather data missing';
   });
 
   // 11. TomTom Live Traffic (Config & Incidents)

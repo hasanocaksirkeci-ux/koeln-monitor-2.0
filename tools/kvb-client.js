@@ -46,6 +46,21 @@ const customProfile = {
 
 export const hafasClient = createClient(customProfile, 'koeln-live-monitor/2.0');
 
+/**
+ * 6-Second Timeout Wrapper for external HAFAS calls
+ */
+export function withTimeout(promise, ms = 6000, opName = 'KVB HAFAS') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`${opName} Timeout nach ${ms}ms`));
+      }, ms);
+      if (typeof timer.unref === 'function') timer.unref();
+    })
+  ]);
+}
+
 const VALID_STADTBAHN_NUMBERS = new Set(['1', '3', '4', '5', '7', '9', '12', '13', '15', '16', '17', '18']);
 
 /**
@@ -61,11 +76,15 @@ export async function getLiveRadar(bounds = null, productFilter = 'all') {
   const b = bounds || defaultBounds;
 
   try {
-    const radarData = await hafasClient.radar(b, {
-      results: 350,
-      duration: 15,
-      frames: 1
-    });
+    const radarData = await withTimeout(
+      hafasClient.radar(b, {
+        results: 350,
+        duration: 15,
+        frames: 1
+      }),
+      6000,
+      'KVB HAFAS Radar'
+    );
 
     const rawMovements = radarData.movements || [];
     const now = new Date();
@@ -133,6 +152,9 @@ export async function getLiveRadar(bounds = null, productFilter = 'all') {
 
     return {
       timestamp: now.toISOString(),
+      source: 'KVB HAFAS Radar',
+      status: 'live',
+      lastSuccessfulUpdate: now.toISOString(),
       count: allVehicles.length,
       stadtbahnCount,
       busCount,
@@ -143,12 +165,15 @@ export async function getLiveRadar(bounds = null, productFilter = 'all') {
     console.error('Radar fetch error:', err.message);
     return {
       timestamp: new Date().toISOString(),
+      source: 'KVB HAFAS Radar',
+      status: 'error',
       count: 0,
       stadtbahnCount: 0,
       busCount: 0,
       totalCount: 0,
       vehicles: [],
-      error: err.message
+      error: err.message,
+      lastSuccessfulUpdate: null
     };
   }
 }
@@ -171,12 +196,16 @@ export async function searchStations(query) {
 
   // 2. Query HAFAS for additional stops
   try {
-    const hafasResults = await hafasClient.locations(query, {
-      results: 10,
-      stops: true,
-      addresses: false,
-      poi: false
-    });
+    const hafasResults = await withTimeout(
+      hafasClient.locations(query, {
+        results: 10,
+        stops: true,
+        addresses: false,
+        poi: false
+      }),
+      6000,
+      'KVB HAFAS Locations'
+    );
 
     const hafasStops = (hafasResults || [])
       .filter(loc => loc.type === 'stop' || loc.type === 'station')
@@ -224,11 +253,15 @@ export async function getDepartures(stopId) {
   const now = new Date();
 
   try {
-    const res = await hafasClient.departures(stopId, {
-      duration: 60,
-      results: 45,
-      remarks: true
-    });
+    const res = await withTimeout(
+      hafasClient.departures(stopId, {
+        duration: 60,
+        results: 45,
+        remarks: true
+      }),
+      6000,
+      'KVB HAFAS Departures'
+    );
 
     const rawDepartures = res.departures || res || [];
     const stopName = stationInfo ? stationInfo.name : (res.stop?.name || `Haltestelle (${stopId})`);
@@ -299,6 +332,9 @@ export async function getDepartures(stopId) {
         lines: stationInfo?.lines || []
       },
       timestamp: now.toISOString(),
+      source: 'KVB HAFAS',
+      status: 'live',
+      lastSuccessfulUpdate: now.toISOString(),
       departures
     };
   } catch (err) {
@@ -313,8 +349,11 @@ export async function getDepartures(stopId) {
         lines: stationInfo?.lines || []
       },
       timestamp: now.toISOString(),
+      source: 'KVB HAFAS',
+      status: 'error',
       departures: [],
-      error: err.message
+      error: err.message,
+      lastSuccessfulUpdate: null
     };
   }
 }
@@ -340,12 +379,16 @@ export async function getRoutes(fromQuery, toQuery, when = new Date()) {
     toId = toResults[0].id;
   }
 
-  const journeyRes = await hafasClient.journeys(fromId, toId, {
-    departure: when,
-    results: 5,
-    transfers: 5,
-    remarks: true
-  });
+  const journeyRes = await withTimeout(
+    hafasClient.journeys(fromId, toId, {
+      departure: when,
+      results: 5,
+      transfers: 5,
+      remarks: true
+    }),
+    6000,
+    'KVB HAFAS Journeys'
+  );
 
   const rawJourneys = journeyRes.journeys || [];
   

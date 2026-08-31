@@ -11,9 +11,12 @@ export async function fetchKvbBikes() {
     return bikesCache.data;
   }
 
+  const nowIso = new Date().toISOString();
+
   try {
     const res = await fetch('https://api.nextbike.net/maps/nextbike-live.json?city=14', {
-      headers: { 'User-Agent': 'KoelnLiveMonitor/2.0' }
+      headers: { 'User-Agent': 'KoelnLiveMonitor/2.0' },
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!res.ok) {
@@ -47,7 +50,10 @@ export async function fetchKvbBikes() {
     }
 
     const payload = {
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      source: 'Nextbike / KVB Rad',
+      status: 'live',
+      lastSuccessfulUpdate: nowIso,
       totalStations: stations.length,
       totalAvailableBikes,
       stations: stations.slice(0, 350) // Top/Dense stations for optimal map render performance
@@ -61,13 +67,23 @@ export async function fetchKvbBikes() {
     return payload;
   } catch (err) {
     console.error('Error fetching KVB bikes:', err.message);
-    if (bikesCache.data) return bikesCache.data;
+    if (bikesCache.data) {
+      return {
+        ...bikesCache.data,
+        status: 'stale',
+        isStale: true,
+        error: err.message
+      };
+    }
     return {
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      source: 'Nextbike / KVB Rad',
+      status: 'error',
       totalStations: 0,
       totalAvailableBikes: 0,
       stations: [],
-      error: err.message
+      error: err.message,
+      lastSuccessfulUpdate: null
     };
   }
 }

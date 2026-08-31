@@ -41,50 +41,14 @@ export function getTomTomTrafficConfig() {
  */
 export async function fetchTomTomIncidents() {
   if (!isTomTomConfigured()) {
-    // If no key is set yet, return structured sample Cologne traffic incidents
     return {
       timestamp: new Date().toISOString(),
-      source: 'tomtom-demo',
+      source: 'tomtom',
+      status: 'unconfigured',
       configured: false,
-      count: 3,
-      incidents: [
-        {
-          id: 'tt-demo-1',
-          type: 'Jam',
-          roadNumber: 'A4 / Rodenkirchener Brücke',
-          description: 'Zähfließender Verkehr / Stau Richtung Aachen (ca. +12 Min. Verzögerung)',
-          delaySeconds: 720,
-          lengthMeters: 3400,
-          magnitudeOfDelay: 2,
-          lat: 50.8985,
-          lng: 6.9942,
-          category: 'jam'
-        },
-        {
-          id: 'tt-demo-2',
-          type: 'RoadWork',
-          roadNumber: 'Innere Kanalstraße',
-          description: 'Baustelle und verengte Fahrstreifen zwischen Venloer Str. und Subbelrather Str.',
-          delaySeconds: 300,
-          lengthMeters: 850,
-          magnitudeOfDelay: 1,
-          lat: 50.9492,
-          lng: 6.9328,
-          category: 'roadwork'
-        },
-        {
-          id: 'tt-demo-3',
-          type: 'Jam',
-          roadNumber: 'Deutzer Brücke / Heumarkt',
-          description: 'Erhöhtes Verkehrsaufkommen stadteinwärts',
-          delaySeconds: 240,
-          lengthMeters: 620,
-          magnitudeOfDelay: 1,
-          lat: 50.9358,
-          lng: 6.9632,
-          category: 'jam'
-        }
-      ]
+      count: 0,
+      incidents: [],
+      message: 'TomTom API-Key nicht konfiguriert'
     };
   }
 

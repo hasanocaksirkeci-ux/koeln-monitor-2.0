@@ -23,7 +23,7 @@ export async function getDisruptions({ force = false } = {}) {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8'
       },
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!res.ok) {
@@ -37,15 +37,29 @@ export async function getDisruptions({ force = false } = {}) {
     const activeReports = parseKvbHtml(html);
     const result = formatDisruptionsData(activeReports);
 
-    disruptionsCache = result;
+    disruptionsCache = {
+      ...result,
+      source: 'KVB Betriebslage',
+      status: 'live',
+      lastSuccessfulUpdate: new Date().toISOString()
+    };
     lastFetchTime = now;
-    return result;
+    return disruptionsCache;
   } catch (err) {
     console.error('Error fetching KVB disruptions:', err.message);
     if (disruptionsCache) {
-      return { ...disruptionsCache, isStale: true, error: err.message };
+      return { ...disruptionsCache, status: 'stale', isStale: true, error: err.message };
     }
-    return formatDisruptionsData([]);
+    return {
+      timestamp: new Date().toISOString(),
+      source: 'KVB Betriebslage',
+      status: 'error',
+      summary: { total: 0, severe: 0, warning: 0, normal: 0 },
+      lines: [],
+      reports: [],
+      error: err.message,
+      lastSuccessfulUpdate: null
+    };
   }
 }
 

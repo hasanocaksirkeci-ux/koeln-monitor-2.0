@@ -295,9 +295,12 @@ export async function fetchCologneEmergencies() {
     return emergenciesCache.data;
   }
 
+  const nowIso = new Date().toISOString();
+
   try {
     const res = await fetch('https://www.presseportal.de/rss/dienststelle_12415.rss2', {
-      headers: { 'User-Agent': 'KoelnLiveMonitor/2.0' }
+      headers: { 'User-Agent': 'KoelnLiveMonitor/2.0' },
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!res.ok) {
@@ -357,7 +360,10 @@ export async function fetchCologneEmergencies() {
     // Get combined from DB to also have historical items
     const allFromDB = getEmergenciesFromDB({ limit: 40 });
     const payload = {
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      source: 'Presseportal Polizei Köln',
+      status: 'live',
+      lastSuccessfulUpdate: nowIso,
       count: allFromDB.length,
       emergencies: allFromDB.map(e => ({
         ...e,
@@ -375,14 +381,29 @@ export async function fetchCologneEmergencies() {
     console.error('Error fetching live emergencies:', err.message);
     // Fallback to SQLite DB
     const fallbackDB = getEmergenciesFromDB({ limit: 30 });
+    if (fallbackDB.length > 0) {
+      return {
+        timestamp: nowIso,
+        source: 'Presseportal Polizei Köln (SQLite Archiv)',
+        status: 'stale',
+        isStale: true,
+        isFallback: true,
+        count: fallbackDB.length,
+        emergencies: fallbackDB.map(e => ({
+          ...e,
+          timeAgo: formatTimeAgo(e.pubDate)
+        })),
+        error: err.message
+      };
+    }
     return {
-      timestamp: new Date().toISOString(),
-      count: fallbackDB.length,
-      emergencies: fallbackDB.map(e => ({
-        ...e,
-        timeAgo: formatTimeAgo(e.pubDate)
-      })),
-      isFallback: true
+      timestamp: nowIso,
+      source: 'Presseportal Polizei Köln',
+      status: 'error',
+      count: 0,
+      emergencies: [],
+      error: err.message,
+      lastSuccessfulUpdate: null
     };
   }
 }

@@ -94,8 +94,206 @@ const state = {
   verifiedStations: [],
   lineTracks: [],
   disruptions: null,
-  widgets: null
+  widgets: null,
+
+  // Central Normalized Data Stores (LIVE, LOADING, STALE, UNAVAILABLE, ERROR)
+  dataStores: {
+    radar: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB HAFAS Radar' },
+    departures: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB HAFAS' },
+    emergencies: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Presseportal Polizei Köln' },
+    bikes: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Nextbike / KVB Rad' },
+    analytics: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB Analytics Engine' },
+    disruptions: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB Betriebslage' },
+    widgets_pegel: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'WSV PegelOnline' },
+    widgets_parking: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Stadt Köln Open Data' },
+    widgets_weather: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Open-Meteo' },
+    traffic: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Traffic' },
+    traffic_config: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Config' }
+  }
 };
+
+// ==========================================================================
+// Central State Normalization & Status Rendering Engine
+// ==========================================================================
+
+export function formatTimeAgo(isoStr) {
+  if (!isoStr) return '';
+  const diffSec = Math.max(0, Math.round((Date.now() - new Date(isoStr).getTime()) / 1000));
+  if (diffSec < 60) return `vor ${diffSec}s`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `vor ${diffMin}m`;
+  const diffHours = Math.round(diffMin / 60);
+  return `vor ${diffHours}h`;
+}
+
+export function renderDataStatus(storeOrKey, fallbackLabel = '') {
+  const store = typeof storeOrKey === 'string' ? state.dataStores[storeOrKey] : storeOrKey;
+  if (!store) return '';
+  const status = store.status || 'LOADING';
+  const timeStr = store.lastSuccessfulUpdate ? formatTimeAgo(store.lastSuccessfulUpdate) : '';
+
+  switch (status) {
+    case 'LIVE':
+      return `<span class="data-status-badge status-live" title="Letztes Update: ${timeStr}"><span class="status-dot">●</span> LIVE <span class="status-sub">${timeStr}</span></span>`;
+    case 'LOADING':
+      return `<span class="data-status-badge status-loading"><span class="status-dot">◐</span> LÄDT...</span>`;
+    case 'STALE':
+      return `<span class="data-status-badge status-stale" title="Letztes erfolgreiches Update: ${timeStr}"><span class="status-dot">◷</span> VERZÖGERT <span class="status-sub">${timeStr}</span></span>`;
+    case 'UNAVAILABLE':
+      return `<span class="data-status-badge status-unavailable" title="${escapeHtml(store.error || 'Quelle derzeit nicht verfügbar')}"><span class="status-dot">⚠</span> NICHT VERFÜGBAR</span>`;
+    case 'ERROR':
+      return `<span class="data-status-badge status-error" title="${escapeHtml(store.error || 'Fehler beim Laden')}"><span class="status-dot">⛔</span> FEHLER</span>`;
+    default:
+      return `<span class="data-status-badge status-unavailable">${escapeHtml(fallbackLabel || status)}</span>`;
+  }
+}
+
+export async function normalizeApiFetch(key, fetchUrlOrPromise, options = {}) {
+  const { force = false, freshnessWindow = 0, ...fetchOptions } = options;
+
+  let store = state.dataStores[key];
+  if (!store) {
+    store = {
+      status: 'LOADING',
+      lastSuccessfulUpdate: null,
+      lastFetchTime: 0,
+      data: null,
+      error: null,
+      source: null,
+      generation: 0,
+      activeController: null,
+      isFetching: false
+    };
+    state.dataStores[key] = store;
+  }
+
+  // 1. Freshness Window Protection (Cache hit if data is fresh and live)
+  if (!force && freshnessWindow > 0 && store.status === 'LIVE' && store.data != null) {
+    const ageMs = Date.now() - (store.lastFetchTime || 0);
+    if (ageMs < freshnessWindow) {
+      return store;
+    }
+  }
+
+  // 2. Concurrency Guard & Abort Strategy
+  if (store.isFetching) {
+    if (force) {
+      // Abort in-flight request on forced manual refresh
+      if (store.activeController) {
+        try {
+          store.activeController.abort();
+        } catch (e) {}
+      }
+    } else {
+      // Background poll or rapid switch: reuse in-flight request without spawning duplicate
+      return store;
+    }
+  }
+
+  // 3. Request Generation ID (Prevents slower old responses from overwriting newer state)
+  store.generation = (store.generation || 0) + 1;
+  const thisGen = store.generation;
+
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  store.activeController = controller;
+  store.isFetching = true;
+
+  try {
+    const mergedOptions = controller ? { ...fetchOptions, signal: controller.signal } : fetchOptions;
+    const res = typeof fetchUrlOrPromise === 'string'
+      ? await fetch(fetchUrlOrPromise, mergedOptions)
+      : await fetchUrlOrPromise;
+
+    // Discard stale response if a newer request generation was started
+    if (thisGen !== store.generation) {
+      return store;
+    }
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText || ''}`.trim());
+    }
+
+    const data = await res.json();
+
+    if (thisGen !== store.generation) {
+      return store;
+    }
+
+    // Check if backend returned structured error
+    if (data.status === 'error' || (data.error && !data.status)) {
+      if (store.data != null) {
+        store.status = 'STALE';
+        store.error = data.error || 'Upstream Error';
+      } else {
+        store.status = 'ERROR';
+        store.data = null;
+        store.error = data.error || 'Upstream Error';
+      }
+      return store;
+    }
+
+    if (data.status === 'unconfigured' || data.configured === false) {
+      store.status = 'UNAVAILABLE';
+      store.data = data;
+      store.error = data.error || 'Nicht konfiguriert';
+      store.source = data.source || store.source;
+      return store;
+    }
+
+    if (data.status === 'stale' || data.isStale) {
+      store.status = 'STALE';
+      store.data = data;
+      store.error = data.error || null;
+      store.source = data.source || store.source;
+      if (data.lastSuccessfulUpdate) {
+        store.lastSuccessfulUpdate = data.lastSuccessfulUpdate;
+      }
+      return store;
+    }
+
+    if (data.status === 'unavailable') {
+      store.status = 'UNAVAILABLE';
+      store.data = data;
+      store.error = data.error || null;
+      store.source = data.source || store.source;
+      return store;
+    }
+
+    // Live success
+    store.status = 'LIVE';
+    store.data = data;
+    store.error = null;
+    store.source = data.source || store.source;
+    store.lastSuccessfulUpdate = data.lastSuccessfulUpdate || data.timestamp || new Date().toISOString();
+    store.lastFetchTime = Date.now();
+    return store;
+  } catch (err) {
+    // Explicit Abort handling - Abort is NOT an API error
+    if (err.name === 'AbortError' || controller?.signal?.aborted) {
+      return store;
+    }
+
+    // Ignore if superseded by newer generation
+    if (thisGen !== store.generation) {
+      return store;
+    }
+
+    if (store.data != null) {
+      store.status = 'STALE';
+      store.error = err.message;
+    } else {
+      store.status = 'ERROR';
+      store.data = null;
+      store.error = err.message;
+    }
+    return store;
+  } finally {
+    if (thisGen === store.generation) {
+      store.isFetching = false;
+      store.activeController = null;
+    }
+  }
+}
 
 // Default Favorites if empty
 if (state.favorites.length === 0) {
@@ -445,7 +643,7 @@ function initLeafletMap() {
   const refreshBtn = document.getElementById('refresh-radar-btn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      fetchLiveRadar();
+      fetchLiveRadar(true);
     });
   }
 
@@ -738,8 +936,14 @@ function snapVehicleToTrack(lat, lng, lineName, product) {
 // 8. Live Radar Loop & Vehicle Marker Rendering
 // ==========================================================================
 function startRadarLoop() {
-  fetchLiveRadar();
+  if (state.radarTimer) {
+    clearInterval(state.radarTimer);
+    state.radarTimer = null;
+  }
+
+  fetchLiveRadar(false);
   
+  state.radarCountdown = 6;
   state.radarTimer = setInterval(() => {
     state.radarCountdown--;
     const countdownEl = document.getElementById('radar-countdown-text');
@@ -747,19 +951,58 @@ function startRadarLoop() {
 
     if (state.radarCountdown <= 0) {
       state.radarCountdown = 6;
-      fetchLiveRadar();
+      fetchLiveRadar(false);
     }
   }, 1000);
 }
 
-async function fetchLiveRadar() {
-  try {
-    const res = await fetch('/api/radar');
-    if (!res.ok) throw new Error('Radar HTTP ' + res.status);
-    const data = await res.json();
-    renderLiveVehicles(data.vehicles || []);
-  } catch (err) {
-    console.error('Radar poll error:', err.message);
+async function fetchLiveRadar(force = false) {
+  const store = await normalizeApiFetch('radar', '/api/radar', { force });
+  
+  if (store.status === 'LIVE') {
+    renderLiveVehicles(store.data?.vehicles || [], store);
+  } else if (store.status === 'STALE') {
+    console.warn('Radar data stale (keeping existing vehicles):', store.error);
+    updateRadarTelemetryStale(store);
+  } else if (store.status === 'ERROR' || store.status === 'UNAVAILABLE') {
+    if (state.vehiclesMap.size > 0) {
+      store.status = 'STALE';
+      updateRadarTelemetryStale(store);
+    } else {
+      updateRadarTelemetryError(store);
+    }
+  }
+}
+
+function updateRadarTelemetryStale(store) {
+  const totalCount = state.vehiclesMap.size;
+  const totalHeaderEl = document.getElementById('vehicle-count-header');
+  if (totalHeaderEl) totalHeaderEl.textContent = totalCount > 0 ? `${totalCount}` : '--';
+  
+  const countdownEl = document.getElementById('radar-countdown-text');
+  if (countdownEl && store.lastSuccessfulUpdate) {
+    countdownEl.title = `Verzögert: letztes Update ${formatTimeAgo(store.lastSuccessfulUpdate)}`;
+  }
+  updateVehicleStreamList();
+}
+
+function updateRadarTelemetryError(store) {
+  const totalHeaderEl = document.getElementById('vehicle-count-header');
+  if (totalHeaderEl) totalHeaderEl.textContent = '--';
+  const hudStadtbahnEl = document.getElementById('hud-stadtbahn-count');
+  if (hudStadtbahnEl) hudStadtbahnEl.textContent = '--';
+  const hudBusEl = document.getElementById('hud-bus-count');
+  if (hudBusEl) hudBusEl.textContent = '--';
+
+  const container = document.getElementById('vehicle-stream-list');
+  if (container) {
+    container.innerHTML = `
+      <div class="glass-panel p-4 text-center text-rose">
+        <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
+        <div style="font-weight:700;">Radar vorübergehend nicht erreichbar</div>
+        <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Verbindung zum KVB-Server fehlgeschlagen')}</div>
+      </div>
+    `;
   }
 }
 
@@ -777,7 +1020,7 @@ function getVextoVehicleMarkerHtml(v, heading = 0) {
   `;
 }
 
-function renderLiveVehicles(vehicles) {
+function renderLiveVehicles(vehicles, store = null) {
   const currentTripIds = new Set();
   const now = Date.now();
 
@@ -1175,22 +1418,36 @@ function deg2rad(deg) { return deg * (Math.PI / 180); }
 // ==========================================================================
 // 9. Blaulicht & Einsatzradar
 // ==========================================================================
-async function loadEmergencies() {
-  try {
-    const res = await fetch('/api/emergencies');
-    if (!res.ok) throw new Error('Emergencies HTTP ' + res.status);
-    const data = await res.json();
-    state.emergencies = data.emergencies || [];
+async function loadEmergencies(force = false) {
+  const store = await normalizeApiFetch('emergencies', '/api/emergencies', { force, freshnessWindow: 20000 });
+  
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.emergencies = store.data?.emergencies || [];
+    const count = state.emergencies.length;
 
     const headerEm = document.getElementById('header-emergency-val');
-    if (headerEm) headerEm.textContent = state.emergencies.length;
+    if (headerEm) headerEm.textContent = count;
     const hudEm = document.getElementById('hud-emergency-count');
-    if (hudEm) hudEm.textContent = state.emergencies.length;
+    if (hudEm) hudEm.textContent = count;
 
     renderEmergencyMarkers();
     renderEmergenciesList();
-  } catch (err) {
-    console.error('Error loading emergencies:', err.message);
+  } else {
+    const headerEm = document.getElementById('header-emergency-val');
+    if (headerEm) headerEm.textContent = '--';
+    const hudEm = document.getElementById('hud-emergency-count');
+    if (hudEm) hudEm.textContent = '--';
+
+    const container = document.getElementById('emergencies-list');
+    if (container && state.emergencies.length === 0) {
+      container.innerHTML = `
+        <div class="glass-panel p-4 text-center text-rose">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
+          <div style="font-weight:700;">Blaulicht-Daten nicht verfügbar</div>
+          <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Fehler beim Laden')}</div>
+        </div>
+      `;
+    }
   }
 }
 
@@ -1301,26 +1558,42 @@ window.appOpenEmergency = function(id) {
 // ==========================================================================
 // 10. KVB-Rad & Nextbike
 // ==========================================================================
-async function loadBikes() {
-  try {
-    const res = await fetch('/api/bikes');
-    if (!res.ok) throw new Error('Bikes HTTP ' + res.status);
-    state.bikesData = await res.json();
+async function loadBikes(force = false) {
+  const store = await normalizeApiFetch('bikes', '/api/bikes', { force, freshnessWindow: 20000 });
+  
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.bikesData = store.data;
 
-    const avail = state.bikesData.totalAvailableBikes || 0;
-    const stats = state.bikesData.totalStations || 0;
+    const avail = typeof state.bikesData?.totalAvailableBikes === 'number' ? state.bikesData.totalAvailableBikes : null;
+    const stats = typeof state.bikesData?.totalStations === 'number' ? state.bikesData.totalStations : null;
 
     const availEl = document.getElementById('bikes-total-available');
-    if (availEl) availEl.textContent = avail.toLocaleString('de-DE');
+    if (availEl) availEl.textContent = avail !== null ? avail.toLocaleString('de-DE') : '--';
     const statsEl = document.getElementById('bikes-total-stations');
-    if (statsEl) statsEl.textContent = stats.toLocaleString('de-DE');
+    if (statsEl) statsEl.textContent = stats !== null ? stats.toLocaleString('de-DE') : '--';
     const hudBikes = document.getElementById('hud-bikes-count');
-    if (hudBikes) hudBikes.textContent = avail.toLocaleString('de-DE');
+    if (hudBikes) hudBikes.textContent = avail !== null ? avail.toLocaleString('de-DE') : '--';
 
     renderBikeMarkers();
     renderBikesList();
-  } catch (err) {
-    console.error('Error loading bikes:', err.message);
+  } else {
+    const availEl = document.getElementById('bikes-total-available');
+    if (availEl) availEl.textContent = '--';
+    const statsEl = document.getElementById('bikes-total-stations');
+    if (statsEl) statsEl.textContent = '--';
+    const hudBikes = document.getElementById('hud-bikes-count');
+    if (hudBikes) hudBikes.textContent = '--';
+
+    const container = document.getElementById('bikes-stations-grid');
+    if (container && !state.bikesData) {
+      container.innerHTML = `
+        <div class="glass-panel p-4 text-center text-rose">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
+          <div style="font-weight:700;">KVB-Rad Live-Daten nicht verfügbar</div>
+          <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Fehler beim Laden')}</div>
+        </div>
+      `;
+    }
   }
 }
 
@@ -1392,25 +1665,49 @@ window.appFlyToBike = function(lat, lng) {
 // ==========================================================================
 // 11. Analytics & SQLite Persistence
 // ==========================================================================
-async function loadAnalytics() {
-  try {
-    const res = await fetch('/api/analytics');
-    if (!res.ok) throw new Error('Analytics HTTP ' + res.status);
-    state.analytics = await res.json();
+async function loadAnalytics(force = false) {
+  const store = await normalizeApiFetch('analytics', '/api/analytics', { force, freshnessWindow: 30000 });
+  
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.analytics = store.data;
 
-    const score = state.analytics.punctualityScore || 94.2;
+    const score = typeof state.analytics?.punctualityScore === 'number'
+      ? state.analytics.punctualityScore
+      : null;
+    const tracked = typeof state.analytics?.totalTracked === 'number'
+      ? state.analytics.totalTracked
+      : null;
+    const avg = typeof state.analytics?.averageDelayMinutes === 'number'
+      ? state.analytics.averageDelayMinutes
+      : null;
+
     const headerPunct = document.getElementById('header-punctuality-val');
-    if (headerPunct) headerPunct.textContent = `${score}%`;
+    if (headerPunct) headerPunct.textContent = score !== null ? `${score.toFixed(1)}%` : '--';
+    
     const scoreVal = document.getElementById('an-score-val');
-    if (scoreVal) scoreVal.textContent = `${score}%`;
+    if (scoreVal) scoreVal.textContent = score !== null ? `${score.toFixed(1)}%` : 'Keine Daten';
+    
     const trackedVal = document.getElementById('an-total-tracked');
-    if (trackedVal) trackedVal.textContent = state.analytics.totalTracked || 300;
+    if (trackedVal) trackedVal.textContent = tracked !== null ? tracked : '--';
+    
     const avgDelay = document.getElementById('an-avg-delay');
-    if (avgDelay) avgDelay.textContent = `${state.analytics.averageDelayMinutes || 0.8} Min`;
+    if (avgDelay) avgDelay.textContent = avg !== null ? `${avg} Min` : '--';
 
     renderAnalyticsLines();
-  } catch (err) {
-    console.error('Error loading analytics:', err.message);
+  } else {
+    const headerPunct = document.getElementById('header-punctuality-val');
+    if (headerPunct) headerPunct.textContent = '--';
+    const scoreVal = document.getElementById('an-score-val');
+    if (scoreVal) scoreVal.textContent = 'Nicht verfügbar';
+    const trackedVal = document.getElementById('an-total-tracked');
+    if (trackedVal) trackedVal.textContent = '--';
+    const avgDelay = document.getElementById('an-avg-delay');
+    if (avgDelay) avgDelay.textContent = '--';
+
+    const tbody = document.getElementById('analytics-lines-tbody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-rose">Analytics derzeit nicht verfügbar</td></tr>`;
+    }
   }
 }
 
@@ -1801,39 +2098,31 @@ function renderStationMarkers() {
 async function loadTomTomTraffic() {
   if (!state.map) return;
 
-  try {
-    const cfgRes = await fetch('/api/traffic/config');
-    if (cfgRes.ok) {
-      const cfg = await cfgRes.json();
-      if (cfg.flowTileUrl) {
-        if (state.trafficFlowLayer) {
-          state.map.removeLayer(state.trafficFlowLayer);
-        }
-        state.trafficFlowLayer = L.tileLayer(cfg.flowTileUrl, {
-          maxZoom: 18,
-          opacity: 0.85,
-          zIndex: 400,
-          attribution: cfg.attribution || '&copy; TomTom Traffic'
-        });
-        if (state.filters.traffic) {
-          state.trafficFlowLayer.addTo(state.map);
-        }
-      }
+  const cfgStore = await normalizeApiFetch('traffic_config', '/api/traffic/config');
+  if (cfgStore.status === 'LIVE' && cfgStore.data?.flowTileUrl) {
+    if (state.trafficFlowLayer) {
+      state.map.removeLayer(state.trafficFlowLayer);
     }
-  } catch (err) {
-    console.warn('TomTom traffic tile config error:', err.message);
+    state.trafficFlowLayer = L.tileLayer(cfgStore.data.flowTileUrl, {
+      maxZoom: 18,
+      opacity: 0.85,
+      zIndex: 400,
+      attribution: cfgStore.data.attribution || '&copy; TomTom Traffic'
+    });
+    if (state.filters.traffic) {
+      state.trafficFlowLayer.addTo(state.map);
+    }
   }
 
   // Load Incident Points (Traffic Jams & Road Closures)
-  try {
-    const incRes = await fetch('/api/traffic/incidents');
-    if (incRes.ok) {
-      const data = await incRes.json();
-      const incidents = data.incidents || [];
-      renderTomTomIncidents(incidents);
-    }
-  } catch (err) {
-    console.warn('TomTom incidents error:', err.message);
+  const incStore = await normalizeApiFetch('traffic', '/api/traffic/incidents');
+  if (incStore.status === 'LIVE' || incStore.status === 'STALE') {
+    renderTomTomIncidents(incStore.data?.incidents || []);
+  } else if (incStore.status === 'UNAVAILABLE') {
+    if (state.trafficIncidentsGroup) state.trafficIncidentsGroup.clearLayers();
+    console.info('TomTom Traffic: Nicht konfiguriert');
+  } else {
+    console.warn('TomTom incidents error:', incStore.error);
   }
 }
 
@@ -1933,14 +2222,12 @@ async function fetchDrawerDepartures(stopId) {
     </div>
   `;
 
-  try {
-    const res = await fetch(`/api/departures?stopId=${encodeURIComponent(stopId)}`);
-    if (!res.ok) throw new Error('Departures HTTP ' + res.status);
-    const data = await res.json();
-    state.departures = data.departures || [];
+  const store = await normalizeApiFetch('departures', `/api/departures?stopId=${encodeURIComponent(stopId)}`);
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.departures = store.data?.departures || [];
     renderDrawerDepartures();
-  } catch (err) {
-    listEl.innerHTML = `<div class="text-rose py-4 text-center">Fehler: ${escapeHtml(err.message)}</div>`;
+  } else {
+    listEl.innerHTML = `<div class="text-rose py-4 text-center">⛔ Abfahrten nicht verfügbar (${escapeHtml(store.error || 'Fehler beim Laden')})</div>`;
   }
 }
 
@@ -2004,7 +2291,7 @@ function initDeparturesView() {
   const manRefreshBtn = document.getElementById('manual-refresh-btn');
   if (manRefreshBtn) {
     manRefreshBtn.addEventListener('click', () => {
-      fetchDepartures(state.activeStation.id);
+      fetchDepartures(state.activeStation.id, true);
     });
   }
 
@@ -2029,7 +2316,7 @@ function updateActiveStationHeader() {
   }
 }
 
-async function fetchDepartures(stopId) {
+async function fetchDepartures(stopId, force = false) {
   const tbody = document.getElementById('departures-tbody');
   if (!tbody) return;
   tbody.innerHTML = `
@@ -2041,14 +2328,12 @@ async function fetchDepartures(stopId) {
     </tr>
   `;
 
-  try {
-    const res = await fetch(`/api/departures?stopId=${encodeURIComponent(stopId)}`);
-    if (!res.ok) throw new Error('Departures HTTP ' + res.status);
-    const data = await res.json();
-    state.departures = data.departures || [];
+  const store = await normalizeApiFetch('departures', `/api/departures?stopId=${encodeURIComponent(stopId)}`, { force, freshnessWindow: 10000 });
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.departures = store.data?.departures || [];
     renderDeparturesTable();
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-rose py-4 text-center">Fehler: ${escapeHtml(err.message)}</td></tr>`;
+  } else {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-rose py-4 text-center">⛔ Abfahrten derzeit nicht verfügbar (${escapeHtml(store.error || 'Fehler beim Laden')})</td></tr>`;
   }
 }
 
@@ -2247,11 +2532,9 @@ async function calculateRoute(from, to) {
     </div>
   `;
 
-  try {
-    const res = await fetch(`/api/routes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-    if (!res.ok) throw new Error('Routes HTTP ' + res.status);
-    const data = await res.json();
-    const routes = data.routes || [];
+  const store = await normalizeApiFetch('routes', `/api/routes?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    const routes = store.data?.routes || [];
 
     if (routes.length === 0) {
       listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Verbindung gefunden.</div>`;
@@ -2281,8 +2564,8 @@ async function calculateRoute(from, to) {
         </div>
       `;
     }).join('');
-  } catch (err) {
-    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-rose">Fehler: ${escapeHtml(err.message)}</div>`;
+  } else {
+    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-rose">⛔ Verbindung nicht berechenbar: ${escapeHtml(store.error || 'Fehler')}</div>`;
   }
 }
 
@@ -2368,12 +2651,12 @@ function initDisruptionsView() {
 }
 
 async function loadDisruptions(force = false) {
-  try {
-    const res = await fetch('/api/disruptions');
-    if (!res.ok) return;
-    state.disruptions = await res.json();
+  const store = await normalizeApiFetch('disruptions', '/api/disruptions', { force, freshnessWindow: 20000 });
+  
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.disruptions = store.data;
 
-    const lines = state.disruptions.lines || [];
+    const lines = state.disruptions?.lines || [];
     const stadtbahnLines = lines.filter(l => l.type === 'stadtbahn');
     const sbNormalCount = stadtbahnLines.filter(l => l.status === 'green').length;
     const totalAlertLines = lines.filter(l => l.status !== 'green');
@@ -2408,8 +2691,24 @@ async function loadDisruptions(force = false) {
     }
 
     renderDisruptionsGrid();
-  } catch (e) {
-    console.warn('Disruptions load error:', e.message);
+  } else {
+    const sbNormalEl = document.getElementById('disrupt-sb-normal');
+    if (sbNormalEl) sbNormalEl.textContent = '--';
+    const totalAlertsEl = document.getElementById('disrupt-total-alerts');
+    if (totalAlertsEl) totalAlertsEl.textContent = '--';
+    const sevCountEl = document.getElementById('disrupt-sev-count');
+    if (sevCountEl) sevCountEl.textContent = '--';
+
+    const container = document.getElementById('stadtbahn-status-grid');
+    if (container && !state.disruptions) {
+      container.innerHTML = `
+        <div class="glass-panel p-4 text-center text-rose">
+          <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
+          <div style="font-weight:700;">Betriebslage-Daten nicht verfügbar</div>
+          <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Fehler beim Laden')}</div>
+        </div>
+      `;
+    }
   }
 }
 
@@ -2549,35 +2848,68 @@ window.appOpenDisruption = function(lineId) {
 // ==========================================================================
 // 17. Cologne Widgets (Tab 8)
 // ==========================================================================
-async function loadWidgets() {
-  try {
-    const res = await fetch('/api/widgets');
-    if (!res.ok) return;
-    state.widgets = await res.json();
+async function loadWidgets(force = false) {
+  const store = await normalizeApiFetch('widgets', '/api/widgets', { force, freshnessWindow: 30000 });
+  
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    state.widgets = store.data;
 
-    if (state.widgets.pegel) {
-      const p = state.widgets.pegel;
-      const pegelValEl = document.getElementById('pegel-cm-val');
-      if (pegelValEl) pegelValEl.textContent = p.value || '--';
-      const headerPegel = document.getElementById('header-pegel-val');
-      if (headerPegel) headerPegel.textContent = `${p.value || 110} cm`;
+    // 1. Pegel
+    const p = state.widgets?.pegel;
+    const pegelValEl = document.getElementById('pegel-cm-val');
+    const headerPegel = document.getElementById('header-pegel-val');
+    const pegelTrendBadge = document.getElementById('pegel-trend-badge');
+
+    if (p && (p.status === 'live' || p.status === 'stale') && (typeof p.valueCm === 'number' || typeof p.value === 'number')) {
+      const val = p.valueCm ?? p.value;
+      if (pegelValEl) pegelValEl.textContent = val;
+      if (headerPegel) headerPegel.textContent = `${val} cm`;
+      if (pegelTrendBadge) pegelTrendBadge.textContent = p.statusText || 'Normal';
+    } else {
+      if (pegelValEl) pegelValEl.textContent = '--';
+      if (headerPegel) headerPegel.textContent = '--';
+      if (pegelTrendBadge) pegelTrendBadge.textContent = 'Nicht verfügbar';
     }
 
-    if (state.widgets.weather) {
-      const w = state.widgets.weather;
-      const tempValEl = document.getElementById('weather-temp-val');
-      if (tempValEl) tempValEl.textContent = Math.round(w.temp || 18);
-      const headerW = document.getElementById('header-weather-val');
-      if (headerW) headerW.textContent = `${Math.round(w.temp || 18)}°C`;
+    // 2. Weather
+    const w = state.widgets?.weather;
+    const tempValEl = document.getElementById('weather-temp-val');
+    const headerW = document.getElementById('header-weather-val');
+    const condEl = document.getElementById('weather-cond-text');
+
+    if (w && (w.status === 'live' || w.status === 'stale') && typeof w.temp === 'number') {
+      const rounded = Math.round(w.temp);
+      if (tempValEl) tempValEl.textContent = `${rounded}°C`;
+      if (headerW) headerW.textContent = `${rounded}°C`;
+      if (condEl) condEl.textContent = w.condition || 'Köln';
+    } else {
+      if (tempValEl) tempValEl.textContent = '--';
+      if (headerW) headerW.textContent = '--';
+      if (condEl) condEl.textContent = 'Nicht verfügbar';
     }
 
-    if (state.widgets.parking) {
-      const pk = state.widgets.parking;
-      const freeEl = document.getElementById('parking-total-free');
-      if (freeEl) freeEl.textContent = (pk.totalFree || 0).toLocaleString('de-DE');
+    // 3. Parking
+    const pk = state.widgets?.parking;
+    const freeEl = document.getElementById('parking-total-free');
+    if (pk && (pk.status === 'live' || pk.status === 'stale') && typeof pk.totalFree === 'number') {
+      if (freeEl) freeEl.textContent = pk.totalFree.toLocaleString('de-DE');
+    } else {
+      if (freeEl) freeEl.textContent = '--';
     }
-  } catch (e) {
-    console.warn('Widgets error:', e.message);
+  } else {
+    // Error / Unavailable
+    const pegelValEl = document.getElementById('pegel-cm-val');
+    if (pegelValEl) pegelValEl.textContent = '--';
+    const headerPegel = document.getElementById('header-pegel-val');
+    if (headerPegel) headerPegel.textContent = '--';
+
+    const tempValEl = document.getElementById('weather-temp-val');
+    if (tempValEl) tempValEl.textContent = '--';
+    const headerW = document.getElementById('header-weather-val');
+    if (headerW) headerW.textContent = '--';
+
+    const freeEl = document.getElementById('parking-total-free');
+    if (freeEl) freeEl.textContent = '--';
   }
 }
 
