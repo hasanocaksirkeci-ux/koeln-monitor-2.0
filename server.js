@@ -9,7 +9,8 @@ import { readFileSync, existsSync } from 'fs';
 import { searchStations, getDepartures, getRoutes, getLiveRadar } from './tools/kvb-client.js';
 import { getDisruptions } from './tools/kvb-disruptions.js';
 import { getCologneWidgets } from './tools/cologne-widgets.js';
-import { getLineTracks, VERIFIED_STATIONS, findStation, getJourneyTrackGeometry } from './tools/stations-data.js';
+import { getLineTracks, VERIFIED_STATIONS, findStation, getJourneyTrackGeometry, findNearestStation } from './tools/stations-data.js';
+import { fetchColognEvents } from './tools/koeln-events.js';
 import { fetchCologneEmergencies } from './tools/cologne-emergencies.js';
 import { fetchKvbBikes } from './tools/kvb-bikes.js';
 import { computeNetworkAnalytics } from './tools/analytics.js';
@@ -378,6 +379,32 @@ app.get('/api/widgets', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/widgets:', err.message);
     res.status(500).json({ error: err.message, pegel: null, parking: [], weather: null });
+  }
+});
+
+/**
+ * GET /api/events
+ * Veranstaltungen der Stadt Köln (offenedaten-koeln.de events-od.php)
+ */
+app.get('/api/events', async (req, res) => {
+  try {
+    const ndays = req.query.ndays ? Number(req.query.ndays) : 14;
+    const kat = req.query.kat || undefined;
+    const cacheKey = `cologne_events_${ndays}_${kat || 'all'}`;
+    const data = await getCached(cacheKey, 900, () => fetchColognEvents({ ndays, kat }));
+
+    // Attach the nearest real KVB station per event with usable coordinates,
+    // so the frontend can wire a "Route hierhin" button without a second
+    // round-trip or a fabricated location.
+    const events = data.events.map(ev => ({
+      ...ev,
+      nearestStation: ev.hasLocation ? findNearestStation(ev.lat, ev.lng) : null
+    }));
+
+    res.json({ ...data, events });
+  } catch (err) {
+    console.error('Error in /api/events:', err.message);
+    res.status(500).json({ error: err.message, count: 0, events: [] });
   }
 });
 

@@ -121,7 +121,8 @@ const state = {
     traffic: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Traffic' },
     traffic_config: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Config' },
     routes: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'KVB Routenplanung' },
-    routes_drive: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Routing' }
+    routes_drive: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'TomTom Routing' },
+    events: { status: 'LOADING', lastSuccessfulUpdate: null, data: null, error: null, source: 'Stadt Köln Open Data (Events)' }
   }
 };
 
@@ -425,6 +426,7 @@ function initApp() {
   initEmergenciesView();
   initBikesView();
   initRoutePlanner();
+  initEventsView();
   initDisruptionsView();
   initAnalyticsView();
   initWidgetsView();
@@ -589,6 +591,8 @@ function switchTab(tabId) {
     loadEmergencies();
   } else if (tabId === 'bikes') {
     loadBikes();
+  } else if (tabId === 'events') {
+    loadEvents();
   } else if (tabId === 'disruptions') {
     loadDisruptions();
   } else if (tabId === 'analytics') {
@@ -2930,6 +2934,113 @@ function initDisruptionsView() {
       renderDisruptionsGrid();
     });
   });
+}
+
+// ==========================================================================
+// Veranstaltungen (Events) — "was ist los + wie komme ich hin"
+// ==========================================================================
+function initEventsView() {
+  const filter = document.getElementById('events-district-filter');
+  if (filter) {
+    filter.addEventListener('change', () => renderEventCards(state.dataStores.events?.data?.events || []));
+  }
+
+  // Event delegation: "Route hierhin" buttons are re-rendered on every
+  // loadEvents() call, so a single listener on the static list container
+  // (same pattern as setupAutocomplete's dropdown delegation) avoids
+  // re-binding per card.
+  const list = document.getElementById('events-list');
+  if (list) {
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-route-to-station]');
+      if (!btn) return;
+      const stationName = btn.getAttribute('data-route-to-station');
+      switchTab('routes');
+      const toInput = document.getElementById('route-to-input');
+      if (toInput) toInput.value = stationName;
+    });
+  }
+}
+
+async function loadEvents(force = false) {
+  const store = await normalizeApiFetch('events', '/api/events?ndays=21', { force, freshnessWindow: 5 * 60 * 1000 });
+  setSlotHtml('events-status-badge', renderDataStatus(store));
+
+  const listEl = document.getElementById('events-list');
+  if (!listEl) return;
+
+  if (store.status === 'LIVE' || store.status === 'STALE') {
+    const events = store.data?.events || [];
+
+    // Populate the Stadtbezirk filter from the events actually returned,
+    // instead of a hardcoded district list that could drift from reality.
+    const filterEl = document.getElementById('events-district-filter');
+    if (filterEl && filterEl.options.length <= 1) {
+      const districts = [...new Set(events.map(e => e.district).filter(Boolean))].sort();
+      for (const d of districts) {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d;
+        filterEl.appendChild(opt);
+      }
+    }
+
+    renderEventCards(events);
+  } else {
+    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
+  }
+}
+
+function renderEventCards(events) {
+  const listEl = document.getElementById('events-list');
+  if (!listEl) return;
+
+  const activeDistrict = document.getElementById('events-district-filter')?.value || '';
+  const filtered = activeDistrict ? events.filter(e => e.district === activeDistrict) : events;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Veranstaltungen gefunden.</div>`;
+    return;
+  }
+
+  // Cross-check against the already-loaded Störungen feed - purely a
+  // read of existing state, no extra fetch. Only fires once disruptions
+  // have actually been loaded at least once this session.
+  const disruptedLines = new Set(
+    (state.dataStores.disruptions?.data?.lines || [])
+      .filter(l => l.status && l.status !== 'green')
+      .map(l => String(l.line))
+  );
+
+  listEl.innerHTML = filtered.slice(0, 40).map(ev => {
+    const start = new Date(ev.startIso);
+    const dateLabel = start.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const timeLabel = ev.time || start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+    const routeButton = ev.nearestStation
+      ? `<button class="pill-btn mt-2" data-route-to-station="${escapeHtml(ev.nearestStation.name)}">➔ Route ab ${escapeHtml(ev.nearestStation.short)} (${ev.nearestStation.distanceMeters}m)</button>`
+      : '';
+
+    const disruptionWarning = ev.nearestStation && (ev.nearestStation.lines || []).some(l => disruptedLines.has(String(l)))
+      ? `<div class="text-amber" style="font-size:0.7rem; margin-top:4px;">⚠ Linie(n) an ${escapeHtml(ev.nearestStation.short)} aktuell gestört</div>`
+      : '';
+
+    return `
+      <div class="bento-card mb-2" style="padding:0.75rem;">
+        <div style="display:flex; justify-content:space-between; gap:0.5rem;">
+          <div style="font-weight:700; font-size:0.85rem;">${escapeHtml(ev.title)}</div>
+          ${ev.price ? `<span class="badge-tag" style="white-space:nowrap;">${escapeHtml(ev.price)}</span>` : ''}
+        </div>
+        <div class="text-muted" style="font-size:0.75rem; margin-top:2px;">
+          ${dateLabel}${timeLabel ? ' · ' + escapeHtml(timeLabel) : ''}${ev.venue ? ' · ' + escapeHtml(ev.venue) : ''}
+        </div>
+        ${ev.district ? `<div class="text-muted" style="font-size:0.7rem;">${escapeHtml(ev.district)}</div>` : ''}
+        ${ev.publicTransportHint ? `<div style="font-size:0.7rem; margin-top:4px;">🚆 ${escapeHtml(ev.publicTransportHint)}</div>` : ''}
+        ${routeButton}
+        ${disruptionWarning}
+      </div>
+    `;
+  }).join('');
 }
 
 async function loadDisruptions(force = false) {

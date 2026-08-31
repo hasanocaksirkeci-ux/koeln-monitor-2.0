@@ -117,6 +117,30 @@ export function findStation(query) {
   );
 }
 
+// Finds the real KVB station nearest to arbitrary coordinates (Haversine
+// distance over VERIFIED_STATIONS - no geocoding call needed). Used to turn
+// an event's lat/lng into a real "Ziel" for the Routenplaner instead of
+// guessing/rounding to a fabricated stop.
+export function findNearestStation(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || !VERIFIED_STATIONS.length) return null;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371000; // meters
+  let nearest = null;
+  let nearestDist = Infinity;
+  for (const s of VERIFIED_STATIONS) {
+    const dLat = toRad(s.lat - lat);
+    const dLng = toRad(s.lng - lng);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat)) * Math.cos(toRad(s.lat)) * Math.sin(dLng / 2) ** 2;
+    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = s;
+    }
+  }
+  return nearest ? { ...nearest, distanceMeters: Math.round(nearestDist) } : null;
+}
+
 // Rhine Bridges (Brückenquerungen)
 const BRIDGE_WAYPOINTS = {
   // Deutzer Brücke: Stadtbahn Linien 1, 7, 9 (Heumarkt <-> Deutzer Freiheit)

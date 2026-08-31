@@ -8,3 +8,5 @@ Thumbs.db
 .vercel
 screenshots/
 .playwright-mcp/
+test-results/
+playwright-report/
