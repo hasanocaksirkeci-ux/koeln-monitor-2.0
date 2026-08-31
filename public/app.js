@@ -13,7 +13,6 @@ const state = {
   theme: localStorage.getItem('koeln_theme') || 'dark',
   activeTab: 'map',
   mapMode: 'dark', // 'dark' | 'light' | 'satellite'
-  is3dTilted: false,
 
   // Map Engine & Layers
   map: null,
@@ -90,9 +89,6 @@ const state = {
 
   // Routenplaner: 'kvb' (ÖPNV, unverändert) | 'car' | 'bicycle' | 'pedestrian' (TomTom)
   routeMode: 'kvb',
-  // Real, from/to-sliced track geometry for the last calculated KVB route
-  // (set by calculateKvbRoute, consumed by appPlotCalculatedRoute)
-  lastRouteTrack: null,
 
   // Rolling history for KPI sparklines (Design Rebuild Phase 1) - real
   // values only, appended each time the corresponding source updates.
@@ -678,18 +674,6 @@ function initLeafletMap() {
       setBasemap(mode);
     });
   });
-
-  // 3D Tilt Toggle Button
-  const tiltBtn = document.getElementById('toggle-3d-btn');
-  const mapWrapper = document.getElementById('map-3d-wrapper');
-  if (tiltBtn && mapWrapper) {
-    tiltBtn.addEventListener('click', () => {
-      state.is3dTilted = !state.is3dTilted;
-      tiltBtn.classList.toggle('active', state.is3dTilted);
-      mapWrapper.classList.toggle('tilt-3d', state.is3dTilted);
-      setTimeout(() => state.map?.invalidateSize(), 300);
-    });
-  }
 
   // GPS Tracking Button
   const gpsBtn = document.getElementById('gps-track-btn');
@@ -1708,6 +1692,71 @@ function renderBikeMarkers() {
   });
 }
 
+// The "Parkleitsystem" layer toggle existed (state.parkingMarkersGroup was
+// created and could be shown/hidden) but nothing ever populated it with
+// markers - the checkbox toggled an empty group. Same real-data garages
+// already used for the sidebar widget (public/app.js loadWidgets), just
+// drawn on the map too.
+function renderParkingMarkers(garages) {
+  if (!state.parkingMarkersGroup) return;
+  state.parkingMarkersGroup.clearLayers();
+
+  garages.forEach(g => {
+    if (!g.coordinates || typeof g.coordinates.lat !== 'number' || typeof g.coordinates.lng !== 'number') return;
+    if (g.free === null || typeof g.free !== 'number') return; // no live data for this garage - don't draw a fake pin
+
+    const isFull = g.status === 'full';
+    const badgeHtml = `
+      <div style="background:${isFull ? '#475569' : 'var(--vexto-emerald, #10B981)'}; color:#000; font-weight:800; font-size:0.65rem; padding:2px 6px; border-radius:999px; border:1px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+        🅿️ ${g.free}
+      </div>
+    `;
+
+    const icon = L.divIcon({
+      className: 'parking-div-icon',
+      html: badgeHtml,
+      iconSize: [40, 18],
+      iconAnchor: [20, 9]
+    });
+
+    const marker = L.marker([g.coordinates.lat, g.coordinates.lng], { icon, zIndexOffset: 280 });
+    marker.bindPopup(`<b>${escapeHtml(g.name || 'Parkhaus')}</b><br>Freie Plätze: <b>${g.free}</b>${typeof g.total === 'number' ? ` / ${g.total}` : ''}`);
+    state.parkingMarkersGroup.addLayer(marker);
+  });
+}
+
+// Known, fixed real-world location of the WSV Pegel-Messstation Köln
+// (Rhein-km 688.0, Deutzer Brücke) - a single physical gauge, not
+// something the API returns coordinates for, so it's hardcoded here the
+// same way GARAGE_CAPACITIES hardcodes known static garage sizes.
+const PEGEL_KOELN_COORDS = { lat: 50.9369, lng: 6.9700 };
+
+function renderPegelMarker(pegel) {
+  if (!state.pegelGroup) return;
+  state.pegelGroup.clearLayers();
+
+  const hasLiveValue = pegel && (pegel.status === 'live' || pegel.status === 'stale') &&
+    (typeof pegel.valueCm === 'number' || typeof pegel.value === 'number');
+  if (!hasLiveValue) return; // no fake marker without a real reading
+
+  const val = pegel.valueCm ?? pegel.value;
+  const badgeHtml = `
+    <div style="background:var(--vexto-cyan, #00f0ff); color:#05070a; font-weight:800; font-size:0.65rem; padding:2px 6px; border-radius:999px; border:1px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+      🌊 ${val} cm
+    </div>
+  `;
+  const icon = L.divIcon({
+    className: 'pegel-div-icon',
+    html: badgeHtml,
+    iconSize: [56, 18],
+    iconAnchor: [28, 9]
+  });
+
+  const marker = L.marker([PEGEL_KOELN_COORDS.lat, PEGEL_KOELN_COORDS.lng], { icon, zIndexOffset: 280 });
+  marker.bindPopup(`<b>Rheinpegel Köln</b><br>Pegelstand: <b>${val} cm</b>${pegel.statusText ? `<br>${escapeHtml(pegel.statusText)}` : ''}`);
+  state.pegelGroup.addLayer(marker);
+}
+
 function renderBikesList() {
   const container = document.getElementById('bikes-stations-grid');
   if (!container || !state.bikesData) return;
@@ -2563,13 +2612,13 @@ function setupAutocomplete(inputEl, dropdownEl, onSelect) {
       return;
     }
 
-    const matches = state.verifiedStations.filter(s => 
+    const matches = state.verifiedStations.filter(s =>
       s.name.toLowerCase().includes(query) || (s.short && s.short.toLowerCase().includes(query))
     ).slice(0, 8);
 
     if (matches.length > 0) {
       dropdownEl.innerHTML = matches.map(s => `
-        <div class="search-item" onclick="window.appAutocompleteSelect('${s.id}')">
+        <div class="search-item" data-station-id="${s.id}">
           <div style="font-weight:700; font-size:0.85rem;">${escapeHtml(s.name)}</div>
           <div style="display:flex; gap:0.25rem;">
             ${(s.lines || []).slice(0, 3).map(l => `<span class="line-badge" style="background:#00f0ff; color:#05070a; font-size:0.65rem; padding:1px 4px;">${l}</span>`).join('')}
@@ -2582,14 +2631,23 @@ function setupAutocomplete(inputEl, dropdownEl, onSelect) {
     }
   });
 
-  window.appAutocompleteSelect = (id) => {
-    const st = state.verifiedStations.find(s => s.id === id);
+  // Event delegation scoped to this dropdown, closing over this specific
+  // inputEl/onSelect pair. Previously this used a single global
+  // window.appAutocompleteSelect reassigned on every setupAutocomplete()
+  // call - wiring up a second autocomplete (e.g. the Routenplaner's Ziel
+  // field right after its Start field) silently overwrote the first one's
+  // callback, so a click in the Start dropdown could route through the
+  // Ziel input's handler.
+  dropdownEl.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-station-id]');
+    if (!item) return;
+    const st = state.verifiedStations.find(s => s.id === item.getAttribute('data-station-id'));
     if (st) {
       inputEl.value = st.name;
       dropdownEl.style.display = 'none';
       onSelect(st);
     }
-  };
+  });
 
   document.addEventListener('click', (e) => {
     if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) {
@@ -2614,6 +2672,14 @@ function initRoutePlanner() {
       toInput.value = temp;
     });
   }
+
+  // Station-suggestion dropdown while typing (reuses the same component
+  // already used for the Abfahrten-Tab search) - previously these were
+  // plain text inputs with no suggestions at all.
+  const fromAutocomplete = document.getElementById('route-from-autocomplete');
+  const toAutocomplete = document.getElementById('route-to-autocomplete');
+  if (fromAutocomplete) setupAutocomplete(fromInput, fromAutocomplete, () => {});
+  if (toAutocomplete) setupAutocomplete(toInput, toAutocomplete, () => {});
 
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -2664,10 +2730,10 @@ async function calculateKvbRoute(from, to) {
 
   if (store.status === 'LIVE' || store.status === 'STALE') {
     const routes = store.data?.routes || [];
-    // Real, from/to-sliced track geometry from the server (or null) -
-    // "Trasse auf Karte zeichnen" uses this instead of guessing at a line
-    // track on the frontend.
-    state.lastRouteTrack = store.data?.trackGeometry || null;
+    // Each route option already carries its own real, per-leg-sliced
+    // trackGeometry from the server (see server.js /api/routes) - it's
+    // serialized into routeEncoded below and read back out in
+    // appPlotCalculatedRoute, no separate state needed.
 
     if (routes.length === 0) {
       listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Verbindung gefunden.</div>`;
@@ -2780,25 +2846,28 @@ window.appPlotCalculatedRoute = function(fromName, toName, routeJsonStr) {
 
   try {
     const route = JSON.parse(decodeURIComponent(routeJsonStr));
-    // Real, from/to-sliced geometry computed server-side (getPreciseRouteBetween).
-    // Previously this looked up the matched line's ENTIRE track by number
-    // (state.lineTracks.find(...)) with no slicing at all - clicking
-    // "Trasse auf Karte zeichnen" for Florastr. -> Neumarkt drew all of
-    // Linie 1 end-to-end (Leverkusen to Zollstock) instead of just that
-    // segment. A straight 2-point line was also drawn as a fallback before -
-    // removed too, since a fabricated straight line is exactly as
-    // misleading as the old curve, just less obviously so.
-    const track = state.lastRouteTrack;
-    const transitLeg = route.legs?.find(l => !l.walking && l.line);
-    const lineNum = transitLeg ? String(transitLeg.line) : (track?.line ? String(track.line) : null);
+    // Real, per-leg-sliced geometry computed server-side from THIS route's
+    // actual legs (getJourneyTrackGeometry) - drawn exactly as described in
+    // the text, including the real transfer point. Previously this looked
+    // up the matched line's ENTIRE track by number with no slicing at all
+    // (Florastr. -> Neumarkt drew all of Linie 1, Leverkusen to Zollstock),
+    // and later a from-scratch hub-guess that could disagree with the
+    // journey's actual transfer station entirely. No fabricated fallback
+    // line anymore - either the real geometry exists or a visible warning
+    // is shown.
+    const track = route.trackGeometry;
+    const transitLines = (track?.segments || []).filter(s => !s.walking && s.line).map(s => String(s.line));
+    const uniqueLines = [...new Set(transitLines)];
+    const lineName = uniqueLines.length ? `Linie ${uniqueLines.join(' ➔ ')}` : null;
+    const lineColor = track?.segments?.find(s => !s.walking)?.color || '#00f0ff';
 
     if (track && track.coordinates && track.coordinates.length > 1) {
       plotRouteTrackOnMap({
         fromName,
         toName,
         coordinates: track.coordinates,
-        lineColor: track.color || '#00f0ff',
-        lineName: lineNum ? `Linie ${lineNum}` : null
+        lineColor,
+        lineName
       });
     } else {
       // Was previously a silent no-op: user clicked "auf Karte zeichnen" and
@@ -3122,6 +3191,9 @@ async function loadWidgets(force = false) {
     } else {
       if (freeEl) freeEl.textContent = '--';
     }
+
+    renderParkingMarkers(pk?.garages || []);
+    renderPegelMarker(p);
   } else {
     // Error / Unavailable
     const pegelValEl = document.getElementById('pegel-cm-val');
@@ -3136,6 +3208,9 @@ async function loadWidgets(force = false) {
 
     const freeEl = document.getElementById('parking-total-free');
     if (freeEl) freeEl.textContent = '--';
+
+    if (state.parkingMarkersGroup) state.parkingMarkersGroup.clearLayers();
+    if (state.pegelGroup) state.pegelGroup.clearLayers();
   }
 }
 

@@ -481,6 +481,86 @@ function sliceTrackBetween(track, stationA, stationB) {
 }
 
 /**
+ * Builds real, transfer-aware track geometry for an ACTUAL selected HAFAS
+ * journey (as returned by getRoutes() in kvb-client.js), instead of
+ * independently guessing a route between the overall from/to pair.
+ *
+ * Each leg already carries the real line number and the real origin/
+ * destination station names for that specific leg (including the real
+ * transfer point) - this slices the matching line's track between those
+ * exact stations per leg and concatenates them, so the drawn route matches
+ * what the text itself describes (right start, right transfer, right line
+ * per segment) instead of a from-scratch hub search that can pick a
+ * different transfer point entirely.
+ *
+ * @param {Array} legs - route.legs from a getRoutes() journey option
+ * @returns {{coordinates: number[][], segments: object[], geometrySource: string} | null}
+ */
+export function getJourneyTrackGeometry(legs) {
+  if (!Array.isArray(legs) || legs.length === 0) return null;
+
+  const allTracks = getLineTracks('all');
+  const segments = [];
+
+  for (const leg of legs) {
+    const fromSt = findStation(leg.origin);
+    const toSt = findStation(leg.destination);
+    if (!fromSt || !toSt) continue;
+
+    if (leg.walking || leg.type === 'walking') {
+      // Honest straight connector between two real stations for a short
+      // walking transfer - not a guess at a transit line's path.
+      segments.push({
+        coordinates: [[fromSt.lat, fromSt.lng], [toSt.lat, toSt.lng]],
+        line: null,
+        color: '#94a3b8',
+        walking: true
+      });
+      continue;
+    }
+
+    const matchingTracks = allTracks.filter(t => String(t.line) === String(leg.line));
+    let coords = null;
+    let usedTrack = null;
+    for (const track of matchingTracks) {
+      const c = sliceTrackBetween(track, fromSt, toSt);
+      if (c && c.length > 1) { coords = c; usedTrack = track; break; }
+    }
+    // Line-number match failed (naming mismatch between HAFAS and our
+    // track data) - fall back to any track that actually connects these
+    // two specific stations, still real geometry, not a guess.
+    if (!coords) {
+      for (const track of allTracks) {
+        const c = sliceTrackBetween(track, fromSt, toSt);
+        if (c && c.length > 1) { coords = c; usedTrack = track; break; }
+      }
+    }
+    if (coords) {
+      segments.push({
+        coordinates: coords,
+        line: leg.line,
+        color: usedTrack?.color || leg.lineColor || '#00f0ff',
+        walking: false
+      });
+    }
+  }
+
+  if (segments.length === 0) return null;
+
+  const merged = [];
+  segments.forEach((seg, i) => {
+    // Avoid a duplicate point at each transfer boundary.
+    merged.push(...(i === 0 ? seg.coordinates : seg.coordinates.slice(1)));
+  });
+
+  return {
+    coordinates: merged,
+    segments,
+    geometrySource: 'hafas-journey-legs'
+  };
+}
+
+/**
  * Calculates curved vector route track between two stations/locations (KVB Stadtbahn & Bus)
  */
 export async function getPreciseRouteBetween(fromQuery, toQuery) {

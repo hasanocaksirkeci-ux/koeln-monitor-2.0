@@ -305,12 +305,18 @@
           </div>
 
           <div class="route-input-group mt-2">
-            <input type="text" id="route-from-input" class="modern-input mb-2" placeholder="Start (z.B. Florastr.)" value="Köln Florastr.">
+            <div style="position:relative;" class="mb-2">
+              <input type="text" id="route-from-input" class="modern-input" placeholder="Start (z.B. Florastr.)" value="Köln Florastr." autocomplete="off">
+              <div id="route-from-autocomplete" class="autocomplete-list" style="display:none;"></div>
+            </div>
             <div style="display:flex; justify-content:center; margin: -0.25rem 0;">
               <button id="swap-route-btn" class="icon-btn-small" title="Start und Ziel tauschen">⇅</button>
             </div>
-            <input type="text" id="route-to-input" class="modern-input mt-2" placeholder="Ziel (z.B. Neumarkt)" value="Köln Neumarkt">
-            
+            <div style="position:relative;" class="mt-2">
+              <input type="text" id="route-to-input" class="modern-input" placeholder="Ziel (z.B. Neumarkt)" value="Köln Neumarkt" autocomplete="off">
+              <div id="route-to-autocomplete" class="autocomplete-list" style="display:none;"></div>
+            </div>
+
             <div class="preset-routes-row mt-2">
               <button class="preset-btn" data-from="Köln Florastr." data-to="Köln Neumarkt">Florastr. ➔ Neumarkt</button>
               <button class="preset-btn" data-from="Köln Dom/Hbf" data-to="Köln Messe/Deutz">Dom ➔ Deutz</button>
@@ -524,12 +530,6 @@
               <span>GPS</span>
             </button>
           </div>
-
-          <!-- 3D Perspective Tilt Pill -->
-          <button class="ribbon-btn" id="toggle-3d-btn" title="3D-Drohnen-Perspektive (28° Tilt) umschalten">
-            <svg class="v-icon sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 16-9 5-9-5V8l9-5 9 5Z"/><path d="m3.27 6.96 8.73 4.87 8.73-4.87"/><path d="M12 22.08V12"/></svg>
-            <span>3D Tilt</span>
-          </button>
 
           <!-- Layer Filters Dropdown -->
           <div class="map-dropdown-wrap" id="map-layers-dropdown-wrap">

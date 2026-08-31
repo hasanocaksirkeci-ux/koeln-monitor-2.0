@@ -9,7 +9,7 @@ import { readFileSync, existsSync } from 'fs';
 import { searchStations, getDepartures, getRoutes, getLiveRadar } from './tools/kvb-client.js';
 import { getDisruptions } from './tools/kvb-disruptions.js';
 import { getCologneWidgets } from './tools/cologne-widgets.js';
-import { getLineTracks, VERIFIED_STATIONS, findStation, getPreciseRouteBetween } from './tools/stations-data.js';
+import { getLineTracks, VERIFIED_STATIONS, findStation, getJourneyTrackGeometry } from './tools/stations-data.js';
 import { fetchCologneEmergencies } from './tools/cologne-emergencies.js';
 import { fetchKvbBikes } from './tools/kvb-bikes.js';
 import { computeNetworkAnalytics } from './tools/analytics.js';
@@ -265,23 +265,23 @@ app.get('/api/routes', async (req, res) => {
     }
     const cacheKey = `route_${from}_${to}`;
     const data = await getCached(cacheKey, 20, async () => {
-      const [journeys, track] = await Promise.all([
-        getRoutes(from, to),
-        // Real, station-sliced geometry (or null if none exists) for the
-        // "Trasse auf Karte zeichnen" button - previously that button drew
-        // the ENTIRE line's track end-to-end instead of just the from/to
-        // segment, since it looked up the line by number with no slicing.
-        getPreciseRouteBetween(from, to).catch(() => null)
-      ]);
-      return {
-        ...journeys,
-        trackGeometry: track && track.coordinates && track.coordinates.length > 1 ? {
-          coordinates: track.coordinates,
-          line: track.line || null,
-          color: track.color || null,
-          geometrySource: track.geometrySource || 'kvb-track'
-        } : null
-      };
+      const journeys = await getRoutes(from, to);
+      // Real, per-leg-sliced geometry for the "Trasse auf Karte zeichnen"
+      // button, computed from each journey option's OWN actual legs
+      // (real line + real origin/destination per leg, including the real
+      // transfer point) - not a from-scratch guess at a hub transfer for
+      // the overall from/to pair, which could disagree with the journey
+      // actually shown (wrong start point, ignored transfer). Different
+      // route options can have different transfers, so this is computed
+      // per option, not once for the whole from/to pair.
+      const routesWithTrack = (journeys.routes || []).map(route => {
+        const track = getJourneyTrackGeometry(route.legs);
+        return {
+          ...route,
+          trackGeometry: track && track.coordinates && track.coordinates.length > 1 ? track : null
+        };
+      });
+      return { ...journeys, routes: routesWithTrack };
     });
     res.json(data);
   } catch (err) {
