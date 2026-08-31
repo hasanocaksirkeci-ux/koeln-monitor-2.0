@@ -140,23 +140,28 @@
           <div class="bento-header">
             <span class="bento-dot pulse-emerald"></span>
             <span class="bento-label">FLOTTE</span>
+            <span class="panel-status-slot" id="radar-status-badge"></span>
           </div>
           <div class="bento-val mono text-cyan" id="vehicle-count-header">--</div>
           <div class="bento-sub">Fahrzeuge online</div>
+          <div class="bento-sparkline" id="fleet-sparkline"></div>
         </div>
 
         <div class="bento-card">
           <div class="bento-header">
             <span class="bento-label">PÜNKTLICH</span>
+            <span class="panel-status-slot" id="header-punctuality-status-badge"></span>
           </div>
-          <div class="bento-val mono text-emerald" id="header-punctuality-val">94.2%</div>
+          <div class="bento-val mono text-emerald" id="header-punctuality-val">--</div>
           <div class="bento-sub">Netz-Score</div>
+          <div class="bento-sparkline" id="punctuality-sparkline"></div>
         </div>
 
         <div class="bento-card">
           <div class="bento-header">
             <span class="bento-dot pulse-rose"></span>
             <span class="bento-label">BLAULICHT</span>
+            <span class="panel-status-slot" id="emergency-status-badge"></span>
           </div>
           <div class="bento-val mono text-rose" id="header-emergency-val">--</div>
           <div class="bento-sub">Aktive Einsätze</div>
@@ -196,7 +201,10 @@
               <svg class="v-icon sm text-amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span>Haltestellen-Abfahrten</span>
             </div>
-            <button id="manual-refresh-btn" class="action-btn secondary small">Aktualisieren</button>
+            <div class="header-right-cluster">
+              <span class="panel-status-slot" id="departures-status-badge"></span>
+              <button id="manual-refresh-btn" class="action-btn secondary small">Aktualisieren</button>
+            </div>
           </div>
 
           <div class="station-search-box mt-2">
@@ -237,6 +245,7 @@
               <svg class="v-icon sm text-rose" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
               <span>Blaulicht Einsatz-Feed</span>
             </div>
+            <span class="panel-status-slot" id="emergencies-panel-status-badge"></span>
           </div>
 
           <div class="line-filter-chips mt-2">
@@ -258,7 +267,10 @@
               <svg class="v-icon sm text-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
               <span>KVB-Rad & Nextbike</span>
             </div>
-            <button id="show-bikes-on-map-btn" class="action-btn secondary small">Auf Karte</button>
+            <div class="header-right-cluster">
+              <span class="panel-status-slot" id="bikes-status-badge"></span>
+              <button id="show-bikes-on-map-btn" class="action-btn secondary small">Auf Karte</button>
+            </div>
           </div>
 
           <div class="bento-telemetry-grid mt-2" style="grid-template-columns: 1fr 1fr;">
@@ -282,6 +294,14 @@
               <svg class="v-icon sm text-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
               <span>Routenplaner Köln</span>
             </div>
+            <span class="panel-status-slot" id="routes-status-badge"></span>
+          </div>
+
+          <div class="disruption-filter-bar mt-2" style="display:flex; gap:4px;">
+            <button class="pill-btn active" data-route-mode="kvb">🚆 KVB</button>
+            <button class="pill-btn" data-route-mode="car">🚗 Auto</button>
+            <button class="pill-btn" data-route-mode="bicycle">🚲 Rad</button>
+            <button class="pill-btn" data-route-mode="pedestrian">🚶 Fuß</button>
           </div>
 
           <div class="route-input-group mt-2">
@@ -304,6 +324,7 @@
 
           <div id="route-results-container" class="mt-3" style="display:none;">
             <div id="route-cards-list"></div>
+            <div id="route-plot-warning" class="text-amber mt-2" style="font-size:0.75rem; display:none;"></div>
           </div>
         </div>
 
@@ -314,24 +335,27 @@
               <svg class="v-icon sm text-amber" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
               <span>KVB Betriebslage & Störungen</span>
             </div>
-            <button id="refresh-disruptions-btn" class="action-btn secondary small" style="padding:0.25rem 0.55rem; font-size:0.7rem;">Aktualisieren</button>
+            <div class="header-right-cluster">
+              <span class="panel-status-slot" id="disruptions-status-badge"></span>
+              <button id="refresh-disruptions-btn" class="action-btn secondary small" style="padding:0.25rem 0.55rem; font-size:0.7rem;">Aktualisieren</button>
+            </div>
           </div>
 
           <!-- Summary Bento Telemetry -->
           <div class="bento-telemetry-grid mt-2" style="grid-template-columns: repeat(3, 1fr);">
             <div class="bento-card">
               <div class="bento-label">STADTBAHN</div>
-              <div class="bento-val mono text-emerald" id="disrupt-sb-normal">12/12</div>
+              <div class="bento-val mono text-emerald" id="disrupt-sb-normal">--</div>
               <div class="bento-sub">Normalbetrieb</div>
             </div>
             <div class="bento-card">
               <div class="bento-label">STÖRUNGEN</div>
-              <div class="bento-val mono text-rose" id="disrupt-total-alerts">0</div>
+              <div class="bento-val mono text-rose" id="disrupt-total-alerts">--</div>
               <div class="bento-sub">Meldungen aktiv</div>
             </div>
             <div class="bento-card">
               <div class="bento-label">ERSATZBUS</div>
-              <div class="bento-val mono text-amber" id="disrupt-sev-count">0</div>
+              <div class="bento-val mono text-amber" id="disrupt-sev-count">--</div>
               <div class="bento-sub">SEV-Korridore</div>
             </div>
           </div>
@@ -356,26 +380,32 @@
               <svg class="v-icon sm text-emerald" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>
               <span>Netz-Pünktlichkeit & SQLite</span>
             </div>
-            <button id="add-commute-btn" class="action-btn secondary small">+ Pendelroute</button>
+            <div class="header-right-cluster">
+              <span class="panel-status-slot" id="analytics-status-badge"></span>
+              <button id="add-commute-btn" class="action-btn secondary small">+ Pendelroute</button>
+            </div>
           </div>
 
           <div class="bento-telemetry-grid mt-2" style="grid-template-columns: repeat(3, 1fr);">
             <div class="bento-card">
               <div class="bento-label">SCORE</div>
-              <div class="bento-val mono text-emerald" id="an-score-val">94.2%</div>
+              <div class="bento-val mono text-emerald" id="an-score-val">--</div>
             </div>
             <div class="bento-card">
               <div class="bento-label">GETRACKT</div>
-              <div class="bento-val mono" id="an-total-tracked">300</div>
+              <div class="bento-val mono" id="an-total-tracked">--</div>
             </div>
             <div class="bento-card">
               <div class="bento-label">Ø VERZÖGERUNG</div>
-              <div class="bento-val mono text-amber" id="an-avg-delay">0.8 Min</div>
+              <div class="bento-val mono text-amber" id="an-avg-delay">--</div>
             </div>
           </div>
 
           <h4 class="sidebar-sub-heading mt-3">Gespeicherte Pendlerrouten</h4>
           <div id="saved-commutes-list" class="mt-2"></div>
+
+          <h4 class="sidebar-sub-heading mt-3">Pünktlichkeit je Linie</h4>
+          <div class="bar-chart-wrap mt-2" id="analytics-line-chart"></div>
 
           <h4 class="sidebar-sub-heading mt-3">Linien-Performance</h4>
           <div class="analytics-table-wrap mt-2">
@@ -405,24 +435,31 @@
           <div class="bento-card mt-2">
             <div class="bento-header">
               <span class="bento-label">RHEINPEGEL KÖLN</span>
-              <span class="badge-tag" id="pegel-trend-badge">Normal</span>
+              <div class="header-right-cluster">
+                <span class="badge-tag" id="pegel-trend-badge">--</span>
+                <span class="panel-status-slot" id="pegel-status-badge"></span>
+              </div>
             </div>
-            <div class="bento-val mono text-cyan" id="pegel-cm-val">117</div>
+            <div class="bento-val mono text-cyan" id="pegel-cm-val">--</div>
             <div class="bento-sub">Zentimeter (WSV PegelOnline)</div>
           </div>
 
           <div class="bento-card mt-2">
             <div class="bento-header">
               <span class="bento-label">WETTER KÖLN</span>
-              <span class="badge-tag" id="header-weather-val">18°C</span>
+              <div class="header-right-cluster">
+                <span class="badge-tag" id="header-weather-val">--</span>
+                <span class="panel-status-slot" id="weather-status-badge"></span>
+              </div>
             </div>
-            <div class="bento-val mono" id="weather-temp-val">18°C</div>
-            <div class="bento-sub" id="weather-cond-text">Heiter</div>
+            <div class="bento-val mono" id="weather-temp-val">--</div>
+            <div class="bento-sub" id="weather-cond-text">--</div>
           </div>
 
           <div class="bento-card mt-2">
             <div class="bento-header">
               <span class="bento-label">PARKLEITSYSTEM</span>
+              <span class="panel-status-slot" id="parking-status-badge"></span>
             </div>
             <div class="bento-val mono text-emerald" id="parking-total-free">--</div>
             <div class="bento-sub">Freie Parkplätze im Zentrum</div>
@@ -541,6 +578,7 @@
                 <input type="checkbox" id="chk-traffic" data-layer="traffic" checked>
                 <span class="custom-chk"></span>
                 <span>🚗 TomTom Live-Verkehr</span>
+                <span class="panel-status-slot" id="traffic-status-badge"></span>
               </label>
               <label class="layer-item">
                 <input type="checkbox" id="chk-parking" data-layer="parking">

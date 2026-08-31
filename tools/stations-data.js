@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { saveTransitTracks } from './db.js';
+import { calculateDrivingRoute } from './tomtom-routing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -482,7 +483,7 @@ function sliceTrackBetween(track, stationA, stationB) {
 /**
  * Calculates curved vector route track between two stations/locations (KVB Stadtbahn & Bus)
  */
-export function getPreciseRouteBetween(fromQuery, toQuery) {
+export async function getPreciseRouteBetween(fromQuery, toQuery) {
   const startSt = findStation(fromQuery);
   const endSt = findStation(toQuery);
   if (!startSt || !endSt) return null;
@@ -558,17 +559,23 @@ export function getPreciseRouteBetween(fromQuery, toQuery) {
     return bestTransferRoute;
   }
 
-  // 3. Clean intermediate curve fallback
-  return {
-    from: { name: startSt.name || startSt.short, lat: startSt.lat, lng: startSt.lng },
-    to: { name: endSt.name || endSt.short, lat: endSt.lat, lng: endSt.lng },
-    coordinates: [
-      [startSt.lat, startSt.lng],
-      [startSt.lat + (endSt.lat - startSt.lat) * 0.4, startSt.lng + (endSt.lng - startSt.lng) * 0.1],
-      [startSt.lat + (endSt.lat - startSt.lat) * 0.7, startSt.lng + (endSt.lng - startSt.lng) * 0.8],
-      [endSt.lat, endSt.lng]
-    ]
-  };
+  // 3. Real street-level approximation via TomTom Routing (walking profile) -
+  // replaces the previous fabricated interpolation curve. Never invent a
+  // line: if TomTom is unconfigured or fails, return null so the caller
+  // surfaces a visible "no geometry available" state instead of a fake one.
+  const tomtomRoute = await calculateDrivingRoute(startSt, endSt, 'pedestrian');
+  if (tomtomRoute && tomtomRoute.coordinates && tomtomRoute.coordinates.length > 1) {
+    return {
+      from: { name: startSt.name || startSt.short, lat: startSt.lat, lng: startSt.lng },
+      to: { name: endSt.name || endSt.short, lat: endSt.lat, lng: endSt.lng },
+      coordinates: tomtomRoute.coordinates,
+      geometrySource: 'tomtom-approximate',
+      distanceMeters: tomtomRoute.distanceMeters,
+      durationSeconds: tomtomRoute.durationSeconds
+    };
+  }
+
+  return null;
 }
 
 export { VERIFIED_STATIONS };

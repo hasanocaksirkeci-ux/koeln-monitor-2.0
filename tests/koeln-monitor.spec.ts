@@ -506,4 +506,68 @@ test.describe('Köln AI City-Assistent & Vector Icons', () => {
   });
 });
 
+// ─── SUITE: Schritt 4 — State-Machine-UI Badges ──────────────────────────────
+// Verifies that the LIVE/LOADING/STALE/UNAVAILABLE/ERROR badge system
+// (renderDataStatus in public/app.js) is actually wired into the widgets,
+// not just defined-but-unused, and that LIVE vs. STALE render visibly
+// differently instead of collapsing into the same markup.
+test.describe('Schritt 4: Data Status Badges', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  });
+
+  test('Abfahrten badge shows LIVE after a successful fetch', async ({ page }) => {
+    await page.click('#tab-btn-departures');
+    const badge = page.locator('#departures-status-badge .data-status-badge');
+    await expect(badge).toBeVisible({ timeout: 10000 });
+    await expect(badge).toHaveClass(/status-live/);
+    await expect(badge).toContainText('LIVE');
+  });
+
+  test('KVB-Rad badge shows LIVE after a successful fetch', async ({ page }) => {
+    await page.click('#tab-btn-bikes');
+    const badge = page.locator('#bikes-status-badge .data-status-badge');
+    await expect(badge).toBeVisible({ timeout: 10000 });
+    await expect(badge).toHaveClass(/status-live/);
+  });
+
+  test('Rheinpegel badge shows LIVE after a successful fetch', async ({ page }) => {
+    await page.click('#tab-btn-widgets');
+    const badge = page.locator('#pegel-status-badge .data-status-badge');
+    await expect(badge).toBeVisible({ timeout: 10000 });
+    await expect(badge).toHaveClass(/status-live/);
+  });
+
+  test('renderDataStatus renders LIVE and STALE with visibly different markup', async ({ page }) => {
+    const [liveHtml, staleHtml] = await page.evaluate(async () => {
+      // @ts-ignore - dynamic import of the app's ES module in-page
+      const mod = await import('/app.js');
+      const live = mod.renderDataStatus({ status: 'LIVE', lastSuccessfulUpdate: new Date().toISOString() });
+      const stale = mod.renderDataStatus({ status: 'STALE', lastSuccessfulUpdate: new Date(Date.now() - 65000).toISOString() });
+      return [live, stale];
+    });
+    expect(liveHtml).toContain('status-live');
+    expect(staleHtml).toContain('status-stale');
+    expect(liveHtml).not.toEqual(staleHtml);
+  });
+
+  test('a route that cannot be plotted shows a visible warning instead of failing silently', async ({ page }) => {
+    await page.click('#tab-btn-routes');
+    await page.evaluate(() => {
+      // Precondition mirrors reality: the warning slot lives inside
+      // #route-results-container, which calculateRoute() reveals once
+      // any route options are found. Here we simulate "options were found,
+      // but this particular one has no resolvable geometry" directly.
+      const container = document.getElementById('route-results-container');
+      if (container) container.style.display = 'block';
+      const fakeRoute = { legs: [{ walking: false, line: null }] };
+      // @ts-ignore - exposed on window by app.js
+      window.appPlotCalculatedRoute('Nichtexistente Haltestelle XYZ', 'Andere Fantasiehaltestelle', encodeURIComponent(JSON.stringify(fakeRoute)));
+    });
+    const warning = page.locator('#route-plot-warning');
+    await expect(warning).toBeVisible();
+    await expect(warning).toContainText('nicht auf der Karte dargestellt werden');
+  });
+});
+
 

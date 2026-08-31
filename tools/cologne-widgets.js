@@ -163,30 +163,47 @@ async function fetchParkingData() {
   const garages = [];
   let totalFree = 0;
   let totalCap = 0;
+  let reportingCount = 0;
 
   for (const f of features) {
     const attr = f.attributes || {};
     const id = String(attr.identifier || '');
-    const name = attr.name || 'Parkhaus';
-    const quarter = attr.parking_quarter || 'Köln';
-    const free = typeof attr.free_spaces === 'number' ? Math.max(0, attr.free_spaces) : 0;
-    const estimatedTotal = GARAGE_CAPACITIES[id] || (attr.capacity || Math.max(free + 50, 200));
+    // Stadt Köln renamed/restructured this feed at some point: the live
+    // free-space count now arrives as `kapazitaet` (despite the name, this
+    // is documented as "number of free spaces, -1 = no data" on the Offene
+    // Daten Köln / open.nrw catalog) and the garage name as `parkhaus`.
+    // The old field names (`name`, `free_spaces`, `parking_quarter`,
+    // `status`) no longer exist in the response at all, which is why every
+    // garage was silently defaulting to free:0/name:"Parkhaus" before.
+    const name = attr.parkhaus || 'Parkhaus';
+    const hasLiveData = typeof attr.kapazitaet === 'number' && attr.kapazitaet >= 0;
+    const free = hasLiveData ? attr.kapazitaet : null;
+    const estimatedTotal = GARAGE_CAPACITIES[id] || (free !== null ? Math.max(free + 50, 200) : null);
 
-    totalFree += free;
-    totalCap += estimatedTotal;
+    if (hasLiveData) {
+      totalFree += free;
+      reportingCount++;
+      if (estimatedTotal) totalCap += estimatedTotal;
+    }
 
-    const occupancyPercent = estimatedTotal > 0 ? Math.min(100, Math.max(0, Math.round(((estimatedTotal - free) / estimatedTotal) * 100))) : 50;
-    
+    const occupancyPercent = (hasLiveData && estimatedTotal)
+      ? Math.min(100, Math.max(0, Math.round(((estimatedTotal - free) / estimatedTotal) * 100)))
+      : null;
+
     let status = 'open';
-    if (attr.status && attr.status.toLowerCase().includes('geschlossen')) status = 'closed';
+    if (!hasLiveData) status = 'unavailable';
     else if (free <= 5) status = 'full';
 
-    const trend = attr.trend || 'steady';
+    // tendenz is a coarse numeric code (-1 = unknown, 0 = steady, 1/2 =
+    // moving) rather than a labeled direction - no documentation confirms
+    // which of 1/2 means rising vs falling, so we only assert what we're
+    // sure of instead of guessing a direction.
+    const trend = attr.tendenz === 0 ? 'steady' : (attr.tendenz > 0 ? 'changing' : 'unknown');
 
     garages.push({
       id,
       name: name.replace(/\s+/g, ' '),
-      quarter,
+      quarter: 'Köln',
       free,
       total: estimatedTotal,
       occupancyPercent,

@@ -121,15 +121,31 @@ export async function getLiveRadar(bounds = null, productFilter = 'all') {
 
       const col = getLineColor(cleanNum || rawLine);
 
-      // Next stopover details
-      const nextStop = m.nextStopovers && m.nextStopovers[0] ? {
-        id: m.nextStopovers[0].stop?.id,
-        name: m.nextStopovers[0].stop?.name?.replace(/^(Köln|Frechen|Hürth|Brühl|Bonn)\s*,?\s*/i, ''),
-        fullName: m.nextStopovers[0].stop?.name,
-        plannedArrival: m.nextStopovers[0].plannedArrival,
-        arrival: m.nextStopovers[0].arrival || m.nextStopovers[0].plannedArrival,
-        delayMinutes: m.nextStopovers[0].arrival && m.nextStopovers[0].plannedArrival ? 
-          Math.max(0, Math.round((new Date(m.nextStopovers[0].arrival) - new Date(m.nextStopovers[0].plannedArrival)) / 60000)) : 0
+      // Next stopover details. hafas-client's stopL[0] is the vehicle's
+      // CURRENT/just-departed stop, not an upcoming one - per its own
+      // source comment ("stopL[0] is the first of the trip"). An origin/
+      // current stop has no `arrival` (nothing arrives before it departs),
+      // so reading nextStopovers[0].arrival was always null and every
+      // vehicle silently defaulted to 0 delay -> a permanently fake 100%
+      // punctuality score. The library already computes real delays in
+      // seconds on each stopover (`departureDelay`/`arrivalDelay`) - use
+      // the first stopover that actually reports one instead of manually
+      // diffing timestamps that are usually null.
+      const liveStopover = (m.nextStopovers || []).find(s =>
+        typeof s.departureDelay === 'number' || typeof s.arrivalDelay === 'number'
+      );
+      const delaySeconds = liveStopover
+        ? (liveStopover.departureDelay ?? liveStopover.arrivalDelay)
+        : null;
+
+      const firstStop = m.nextStopovers && m.nextStopovers[0];
+      const nextStop = firstStop ? {
+        id: firstStop.stop?.id,
+        name: firstStop.stop?.name?.replace(/^(Köln|Frechen|Hürth|Brühl|Bonn)\s*,?\s*/i, ''),
+        fullName: firstStop.stop?.name,
+        plannedArrival: firstStop.plannedArrival,
+        arrival: firstStop.arrival || firstStop.plannedArrival,
+        delayMinutes: delaySeconds !== null ? Math.max(0, Math.round(delaySeconds / 60)) : 0
       } : null;
 
       allVehicles.push({
