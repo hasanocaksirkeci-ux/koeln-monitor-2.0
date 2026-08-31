@@ -305,12 +305,17 @@ function switchTab(tabId) {
 
   // Mobile sidebar drawer handling
   const sidebar = document.querySelector('.dashboard-sidebar');
+  const transitHud = document.getElementById('transit-hud-bar');
   if (sidebar && window.innerWidth <= 900) {
     if (tabId === 'map') {
       sidebar.classList.remove('mobile-open');
+      if (transitHud) transitHud.style.display = 'flex';
     } else {
       sidebar.classList.add('mobile-open');
+      if (transitHud) transitHud.style.display = 'none';
     }
+  } else if (transitHud) {
+    transitHud.style.display = 'flex';
   }
 
   if (tabId === 'map' && state.map) {
@@ -2312,28 +2317,94 @@ window.appPlotCalculatedRoute = function(fromName, toName, routeJsonStr) {
 };
 
 // ==========================================================================
-// 16. Disruptions (Tab 6)
 // ==========================================================================
+// 16. Disruptions & SEV Feed (Tab 6)
+// ==========================================================================
+const STADTBAHN_TERMINI = {
+  '1': 'Weiden West ↔ Bensberg',
+  '3': 'Görlinger-Zentrum ↔ Thielenbruch',
+  '4': 'Bocklemünd ↔ Schlebusch',
+  '5': 'Am Butzweilerhof ↔ Heumarkt',
+  '7': 'Frechen Benzelrath ↔ Zündorf',
+  '9': 'Sülz ↔ Königsforst',
+  '12': 'Merkenich ↔ Zollstock',
+  '13': 'Sülzgürtel ↔ Holweide',
+  '15': 'Chorweiler ↔ Ubierring',
+  '16': 'Niehl ↔ Bonn-Bad Godesberg',
+  '17': 'Severinstr. ↔ Rodenkirchen',
+  '18': 'Thielenbruch ↔ Bonn Hbf'
+};
+
 function initDisruptionsView() {
-  const closeBtn = document.getElementById('close-modal-btn');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      document.getElementById('disruption-modal').style.display = 'none';
+  const closeModal = () => {
+    const modal = document.getElementById('disruption-modal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  document.getElementById('close-modal-btn')?.addEventListener('click', closeModal);
+  document.getElementById('close-modal-btn-top')?.addEventListener('click', closeModal);
+  
+  const modal = document.getElementById('disruption-modal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
     });
   }
+
+  // Refresh Button
+  document.getElementById('refresh-disruptions-btn')?.addEventListener('click', () => {
+    loadDisruptions(true);
+  });
+
+  // Filter Buttons
+  document.querySelectorAll('[data-disrupt-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-disrupt-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.disruptFilter = btn.getAttribute('data-disrupt-filter');
+      renderDisruptionsGrid();
+    });
+  });
 }
 
-async function loadDisruptions() {
+async function loadDisruptions(force = false) {
   try {
     const res = await fetch('/api/disruptions');
     if (!res.ok) return;
     state.disruptions = await res.json();
 
-    const summary = state.disruptions.summary || { severe: 0, warning: 0, normal: 0 };
-    const totalIssues = (summary.severe || 0) + (summary.warning || 0);
+    const lines = state.disruptions.lines || [];
+    const stadtbahnLines = lines.filter(l => l.type === 'stadtbahn');
+    const sbNormalCount = stadtbahnLines.filter(l => l.status === 'green').length;
+    const totalAlertLines = lines.filter(l => l.status !== 'green');
+    const sevCount = lines.filter(l => l.hasSEV).length;
+
+    // Update Telemetry Bento
+    const sbNormalEl = document.getElementById('disrupt-sb-normal');
+    if (sbNormalEl) sbNormalEl.textContent = `${sbNormalCount}/${stadtbahnLines.length || 12}`;
+
+    const totalAlertsEl = document.getElementById('disrupt-total-alerts');
+    if (totalAlertsEl) totalAlertsEl.textContent = `${totalAlertLines.length}`;
+
+    const sevCountEl = document.getElementById('disrupt-sev-count');
+    if (sevCountEl) sevCountEl.textContent = `${sevCount}`;
+
+    const filterCountEl = document.getElementById('disrupt-filter-count');
+    if (filterCountEl) filterCountEl.textContent = `${totalAlertLines.length}`;
+
     const badge = document.getElementById('disruption-badge');
     if (badge) {
-      badge.textContent = totalIssues > 0 ? `${totalIssues} AKTIV` : 'NORMAL';
+      if (totalAlertLines.length > 0) {
+        badge.textContent = `${totalAlertLines.length} AKTIV`;
+        badge.className = 'dock-badge-alert';
+        badge.style.background = 'rgba(244, 63, 94, 0.2)';
+        badge.style.color = '#f43f5e';
+      } else {
+        badge.textContent = 'NORMAL';
+        badge.className = 'dock-badge-alert';
+        badge.style.background = 'rgba(16, 185, 129, 0.2)';
+        badge.style.color = '#10b981';
+      }
     }
 
     renderDisruptionsGrid();
@@ -2343,16 +2414,75 @@ async function loadDisruptions() {
 }
 
 function renderDisruptionsGrid() {
-  const stadtbahnGrid = document.getElementById('stadtbahn-status-grid');
-  if (!stadtbahnGrid || !state.disruptions) return;
+  const container = document.getElementById('stadtbahn-status-grid');
+  if (!container || !state.disruptions) return;
 
-  const lines = (state.disruptions.lines || []).filter(l => l.type === 'stadtbahn');
-  stadtbahnGrid.innerHTML = lines.map(l => `
-    <div class="glass-panel p-3" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="window.appOpenDisruption('${l.id}')">
-      <span class="line-badge" style="background:#00f0ff; color:#05070a;">${l.id}</span>
-      <span class="telem-dot ${l.status === 'green' ? 'pulse-emerald' : 'pulse-rose'}"></span>
-    </div>
-  `).join('');
+  const allLines = state.disruptions.lines || [];
+  const filter = state.disruptFilter || 'all';
+
+  let filtered = allLines;
+  if (filter === 'alerts') {
+    filtered = allLines.filter(l => l.status !== 'green');
+  } else if (filter === 'stadtbahn') {
+    filtered = allLines.filter(l => l.type === 'stadtbahn');
+  } else if (filter === 'bus') {
+    filtered = allLines.filter(l => l.type !== 'stadtbahn');
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="glass-panel p-4 text-center">
+        <div style="font-size:1.8rem; margin-bottom:0.5rem;">🎉</div>
+        <div style="font-weight:800; color:var(--vexto-emerald);">Keine aktuellen Störungen</div>
+        <div class="text-muted mt-1" style="font-size:0.75rem;">Alle Linien im regulären Fahrplanbetrieb.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map(l => {
+    const isSb = l.type === 'stadtbahn';
+    const termini = isSb ? (STADTBAHN_TERMINI[l.id] || '') : (l.termini || '');
+    const isGreen = l.status === 'green';
+    const isRed = l.status === 'red' || l.hasSEV;
+    const badgeStatus = isGreen ? 'green' : (isRed ? 'red' : 'yellow');
+    const badgeLabel = isGreen ? 'PÜNKTLICH' : (l.hasSEV ? 'SEV' : (l.status === 'red' ? 'SPERRUNG' : 'WARNUNG'));
+    
+    let statusText = '● Normalbetrieb (Keine Störungen)';
+    if (l.hasSEV) statusText = '🚨 Schienenersatzverkehr (SEV) aktiv';
+    else if (l.status === 'red') statusText = '⛔ Streckensperrung gemeldet';
+    else if (l.status === 'yellow') statusText = '⚠️ Baustelle / Behinderung';
+
+    const cleanDesc = l.description ? escapeHtml(l.description) : '';
+
+    return `
+      <div class="disruption-card status-${badgeStatus}" onclick="window.appOpenDisruption('${escapeHtml(l.id)}')">
+        <div class="dcard-header">
+          <div class="dcard-left">
+            <span class="line-badge" style="background:${l.lineColor || '#00f0ff'}; color:${l.lineTextColor || '#fff'};">${escapeHtml(l.id)}</span>
+            <div class="dcard-title-col">
+              <div class="dcard-title">
+                <span>${escapeHtml(l.name || ('Linie ' + l.id))}</span>
+                ${termini ? `<span class="dcard-termini">${escapeHtml(termini)}</span>` : ''}
+              </div>
+              <div class="dcard-status-text text-${isGreen ? 'emerald' : (isRed ? 'rose' : 'amber')}">
+                ${statusText}
+              </div>
+            </div>
+          </div>
+          <div class="dcard-status-badge ${badgeStatus}">
+            ${badgeLabel}
+          </div>
+        </div>
+        ${!isGreen && cleanDesc ? `
+          <div class="dcard-body">
+            <div class="dcard-desc">${cleanDesc}</div>
+            ${l.reports && l.reports.length > 1 ? `<div class="dcard-sub-count">+ ${l.reports.length - 1} weitere Meldungen</div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 window.appOpenDisruption = function(lineId) {
@@ -2360,10 +2490,59 @@ window.appOpenDisruption = function(lineId) {
   if (!l) return;
 
   const modal = document.getElementById('disruption-modal');
-  document.getElementById('modal-title').textContent = `Betriebslage Linie ${l.id || l.name}`;
-  document.getElementById('modal-body').innerHTML = `
-    <p style="line-height:1.6; color:var(--text-primary);">${escapeHtml(l.description || 'Fahrplanmäßiger Betrieb.')}</p>
-  `;
+  if (!modal) return;
+
+  const badgeEl = document.getElementById('disrupt-modal-badge');
+  if (badgeEl) {
+    badgeEl.textContent = l.id;
+    badgeEl.style.background = l.lineColor || '#00f0ff';
+    badgeEl.style.color = l.lineTextColor || '#fff';
+  }
+
+  const titleEl = document.getElementById('modal-title');
+  if (titleEl) titleEl.textContent = `Betriebslage ${l.name || ('Linie ' + l.id)}`;
+
+  const subEl = document.getElementById('disrupt-modal-sub');
+  if (subEl) {
+    const termini = STADTBAHN_TERMINI[l.id] || '';
+    subEl.textContent = termini ? `${termini} • KVB Köln` : 'Netz Köln';
+  }
+
+  const reports = l.reports && l.reports.length > 0 ? l.reports : [{
+    title: l.name,
+    description: l.description || 'Fahrplanmäßiger Betrieb ohne bekannte Störungen.',
+    status: l.status,
+    hasSEV: l.hasSEV,
+    timestamp: new Date().toISOString()
+  }];
+
+  const bodyEl = document.getElementById('modal-body');
+  if (bodyEl) {
+    bodyEl.innerHTML = reports.map((r, idx) => `
+      <div class="glass-panel p-3 mb-2" style="background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:0.75rem; font-weight:800; color:${r.status === 'green' ? 'var(--vexto-emerald)' : (r.status === 'red' ? 'var(--vexto-rose)' : 'var(--vexto-amber)')};">
+            ${r.hasSEV ? '🚨 Schienenersatzverkehr (SEV)' : (r.status === 'green' ? '✓ Normalbetrieb' : '⚠️ Betriebsstörung')}
+          </span>
+          <span class="mono text-muted" style="font-size:0.65rem;">Meldung ${idx + 1}/${reports.length}</span>
+        </div>
+        <p style="font-size:0.82rem; line-height:1.55; color:var(--text-primary); margin:0;">
+          ${escapeHtml(r.description || '')}
+        </p>
+      </div>
+    `).join('');
+  }
+
+  const highlightBtn = document.getElementById('disrupt-modal-highlight-btn');
+  if (highlightBtn) {
+    highlightBtn.onclick = () => {
+      modal.style.display = 'none';
+      switchTab('map');
+      const track = state.lineTracks?.find(t => t.line === l.id);
+      if (track) highlightLineTrack(track);
+    };
+  }
+
   modal.style.display = 'flex';
 };
 

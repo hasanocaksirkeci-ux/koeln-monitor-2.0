@@ -7,3 +7,4 @@ data/*.sqlite-journal
 Thumbs.db
 .vercel
 screenshots/
+.playwright-mcp/

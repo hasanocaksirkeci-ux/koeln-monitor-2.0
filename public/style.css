@@ -1676,10 +1676,19 @@ button svg { pointer-events: none; }
     min-width: 100vw;
     height: calc(100vh - 60px);
     display: none;
+    z-index: 1050;
+    background: var(--bg-canvas);
   }
 
   .dashboard-sidebar.mobile-open {
     display: flex;
+  }
+
+  .dashboard-sidebar.mobile-open ~ .map-stage .transit-hud-bar,
+  .dashboard-sidebar.mobile-open ~ .map-stage .map-floating-ribbon,
+  .dashboard-sidebar.mobile-open ~ .map-stage .map-ai-floating-btn,
+  .dashboard-sidebar.mobile-open ~ .map-stage .cockpit-hud {
+    display: none !important;
   }
 
   .map-stage {
@@ -2105,6 +2114,246 @@ button svg { pointer-events: none; }
     width: 100%;
     max-height: 65vh;
     border-radius: 20px 20px 0 0;
+  }
+}
+
+/* ==============================================
+   Disruptions & SEV Feed Cards
+   ============================================== */
+.disruption-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disruption-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  box-shadow: var(--inner-bevel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.disruption-card:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-highlight);
+  transform: translateY(-1px);
+}
+
+.disruption-card.status-red {
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.05);
+}
+.disruption-card.status-red:hover {
+  border-color: var(--vexto-rose);
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.disruption-card.status-yellow {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.04);
+}
+.disruption-card.status-yellow:hover {
+  border-color: var(--vexto-amber);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.disruption-card.status-green {
+  border-color: rgba(16, 185, 129, 0.15);
+}
+
+.dcard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dcard-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dcard-title-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.dcard-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dcard-termini {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dcard-status-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.dcard-status-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dcard-status-badge.green {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--vexto-emerald);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.dcard-status-badge.yellow {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vexto-amber);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.dcard-status-badge.red {
+  background: rgba(244, 63, 94, 0.2);
+  color: var(--vexto-rose);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
+.dcard-body {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 6px;
+}
+
+.dcard-desc {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dcard-sub-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--vexto-cyan);
+  margin-top: 3px;
+}
+
+/* ==============================================
+   Responsive Floating Ribbon & Controls
+   ============================================== */
+@media (max-width: 900px) {
+  .map-floating-ribbon {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    gap: 6px;
+  }
+  
+  .ribbon-left {
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ribbon-left::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ribbon-right {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .seg-btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.72rem;
+  }
+
+  .ribbon-btn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .map-floating-ribbon {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 4px;
+  }
+
+  .map-mode-segmented-control {
+    padding: 2px;
+  }
+
+  .seg-btn {
+    padding: 0.35rem 0.45rem;
+    gap: 0.2rem;
+    font-size: 0.68rem;
+  }
+
+  .ribbon-btn {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.68rem;
+    gap: 0.25rem;
+  }
+
+  #reset-view-btn span, #gps-track-btn span {
+    display: none;
+  }
+
+  .radar-countdown-badge {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 410px) {
+  .seg-btn span {
+    display: none;
+  }
+  
+  .seg-btn {
+    padding: 0.35rem 0.4rem;
+  }
+  
+  #toggle-3d-btn span {
+    font-size: 0.65rem;
+  }
+
+  .ribbon-btn {
+    padding: 0.35rem 0.45rem;
   }
 }
 
