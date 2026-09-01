@@ -3344,23 +3344,83 @@ function initHomeDashboard() {
   // snap rather than an imperceptible 1-2px nudge.
   const HOME_GRID = 20;
 
-  // Widgets must not overlap ("die Map über das Wetter legen") - checked
-  // live against every OTHER widget's current on-screen rect. A candidate
-  // position/size that would overlap is simply rejected for that frame,
-  // so the widget "sticks" at its last valid spot instead of passing
-  // through another one.
+  // Widgets must not overlap ("die Map über das Wetter legen"). Rather than
+  // just blocking a move into an occupied spot, whatever is in the way gets
+  // shoved aside in the direction of travel (cascading - a pushed widget
+  // can itself push a third one) - only falls back to blocking the move
+  // entirely when there's nowhere left for the chain to go (canvas edge).
+  function getRect(el, left = el.offsetLeft, top = el.offsetTop, w = el.offsetWidth, h = el.offsetHeight) {
+    return { left, top, right: left + w, bottom: top + h };
+  }
+
+  function rectsOverlap(a, b) {
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  }
+
   function overlapsOtherWidgets(widget, left, top, w, h) {
-    const right = left + w;
-    const bottom = top + h;
+    const rect = getRect(widget, left, top, w, h);
     for (const other of document.querySelectorAll('.dash-widget')) {
-      if (other === widget) continue;
-      const oLeft = other.offsetLeft;
-      const oTop = other.offsetTop;
-      const oRight = oLeft + other.offsetWidth;
-      const oBottom = oTop + other.offsetHeight;
-      if (left < oRight && right > oLeft && top < oBottom && bottom > oTop) return true;
+      if (other !== widget && rectsOverlap(rect, getRect(other))) return true;
     }
     return false;
+  }
+
+  // Attempts to move `widget` to the given rect by pushing anything in the
+  // way (and anything THAT then overlaps, cascading) roughly in direction
+  // (dirX, dirY). Returns a Map of widget -> {left, top} for every widget
+  // that needs to move (including `widget` itself) if the whole chain fits
+  // on the canvas, or null if it doesn't (caller should then reject the move).
+  function planPush(widget, left, top, w, h, dirX, dirY) {
+    const moves = new Map([[widget, { left, top }]]);
+    const queue = [{ el: widget, rect: getRect(widget, left, top, w, h) }];
+    const all = [...document.querySelectorAll('.dash-widget')];
+
+    while (queue.length) {
+      const { rect } = queue.shift();
+      for (const other of all) {
+        if (moves.has(other)) continue;
+        const oRect = getRect(other);
+        if (!rectsOverlap(rect, oRect)) continue;
+
+        const overlapX = Math.min(rect.right, oRect.right) - Math.max(rect.left, oRect.left);
+        const overlapY = Math.min(rect.bottom, oRect.bottom) - Math.max(rect.top, oRect.top);
+        let pushX = 0, pushY = 0;
+        if (Math.abs(dirX) >= Math.abs(dirY) && dirX !== 0) {
+          pushX = dirX > 0 ? overlapX : -overlapX;
+        } else if (dirY !== 0) {
+          pushY = dirY > 0 ? overlapY : -overlapY;
+        } else if (overlapX < overlapY) {
+          pushX = rect.left < oRect.left ? overlapX : -overlapX;
+        } else {
+          pushY = rect.top < oRect.top ? overlapY : -overlapY;
+        }
+
+        const newLeft = oRect.left + pushX;
+        const newTop = oRect.top + pushY;
+        const maxLeft = canvas.clientWidth - other.offsetWidth;
+        const maxTop = canvas.clientHeight - other.offsetHeight;
+        if (newLeft < 0 || newLeft > maxLeft || newTop < 0 || newTop > maxTop) {
+          return null; // no room for the chain - caller falls back to blocking
+        }
+
+        const newRect = getRect(other, newLeft, newTop);
+        moves.set(other, { left: newLeft, top: newTop });
+        queue.push({ el: other, rect: newRect });
+      }
+    }
+    return moves;
+  }
+
+  function applyPushMoves(moves, id, layout) {
+    for (const [el, pos] of moves) {
+      el.style.left = pos.left + 'px';
+      el.style.top = pos.top + 'px';
+      const wid = el.dataset.widgetId;
+      layout[wid] = { ...(layout[wid] || HOME_WIDGET_DEFAULTS[wid]), x: pos.left, y: pos.top };
+      if (wid === 'minimap' && el !== document.querySelector(`[data-widget-id="${id}"]`) && state.homeMinimap) {
+        state.homeMinimap.invalidateSize();
+      }
+    }
   }
 
   document.querySelectorAll('.dash-widget').forEach(widget => {
@@ -3385,19 +3445,25 @@ function initHomeDashboard() {
           const maxTop = Math.max(0, canvas.clientHeight - widget.offsetHeight);
           const candLeft = clamp(Math.round((startLeft + (ev.clientX - startX)) / HOME_GRID) * HOME_GRID, 0, maxLeft);
           const candTop = clamp(Math.round((startTop + (ev.clientY - startY)) / HOME_GRID) * HOME_GRID, 0, maxTop);
+          if (candLeft === widget.offsetLeft && candTop === widget.offsetTop) return;
+
           if (!overlapsOtherWidgets(widget, candLeft, candTop, widget.offsetWidth, widget.offsetHeight)) {
             widget.style.left = candLeft + 'px';
             widget.style.top = candTop + 'px';
+            return;
           }
+          const dirX = candLeft - widget.offsetLeft;
+          const dirY = candTop - widget.offsetTop;
+          const moves = planPush(widget, candLeft, candTop, widget.offsetWidth, widget.offsetHeight, dirX, dirY);
+          if (moves) applyPushMoves(moves, id, layout);
+          // else: no room for the chain, stays put this frame.
         };
         const onUp = () => {
           header.removeEventListener('pointermove', onMove);
           header.removeEventListener('pointerup', onUp);
           widget.classList.remove('dragging');
           widget.style.zIndex = '';
-          const snapLeft = widget.offsetLeft;
-          const snapTop = widget.offsetTop;
-          layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), x: snapLeft, y: snapTop };
+          layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), x: widget.offsetLeft, y: widget.offsetTop };
           saveHomeLayout(layout);
         };
         header.addEventListener('pointermove', onMove);
@@ -3422,11 +3488,24 @@ function initHomeDashboard() {
           const maxH = canvas.clientHeight - widget.offsetTop;
           const candW = clamp(Math.round((startW + (ev.clientX - startX)) / HOME_GRID) * HOME_GRID, 240, maxW);
           const candH = clamp(Math.round((startH + (ev.clientY - startY)) / HOME_GRID) * HOME_GRID, 110, maxH);
+          if (candW === widget.offsetWidth && candH === widget.offsetHeight) return;
+
           if (!overlapsOtherWidgets(widget, widget.offsetLeft, widget.offsetTop, candW, candH)) {
             widget.style.width = candW + 'px';
             widget.style.height = candH + 'px';
             if (id === 'minimap' && state.homeMinimap) state.homeMinimap.invalidateSize();
+            return;
           }
+          const dirX = candW - widget.offsetWidth;
+          const dirY = candH - widget.offsetHeight;
+          const moves = planPush(widget, widget.offsetLeft, widget.offsetTop, candW, candH, dirX, dirY);
+          if (moves) {
+            applyPushMoves(moves, id, layout);
+            widget.style.width = candW + 'px';
+            widget.style.height = candH + 'px';
+            if (id === 'minimap' && state.homeMinimap) state.homeMinimap.invalidateSize();
+          }
+          // else: no room for the chain, stays put this frame.
         };
         const onUp = () => {
           resizeHandle.removeEventListener('pointermove', onMove);
