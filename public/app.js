@@ -3339,6 +3339,30 @@ function initHomeDashboard() {
     }
   });
 
+  // Grid unit widgets snap to while dragging/resizing - also the unit
+  // "einrasten" (snapping) is measured in, so it's a visible, chunky
+  // snap rather than an imperceptible 1-2px nudge.
+  const HOME_GRID = 20;
+
+  // Widgets must not overlap ("die Map über das Wetter legen") - checked
+  // live against every OTHER widget's current on-screen rect. A candidate
+  // position/size that would overlap is simply rejected for that frame,
+  // so the widget "sticks" at its last valid spot instead of passing
+  // through another one.
+  function overlapsOtherWidgets(widget, left, top, w, h) {
+    const right = left + w;
+    const bottom = top + h;
+    for (const other of document.querySelectorAll('.dash-widget')) {
+      if (other === widget) continue;
+      const oLeft = other.offsetLeft;
+      const oTop = other.offsetTop;
+      const oRight = oLeft + other.offsetWidth;
+      const oBottom = oTop + other.offsetHeight;
+      if (left < oRight && right > oLeft && top < oBottom && bottom > oTop) return true;
+    }
+    return false;
+  }
+
   document.querySelectorAll('.dash-widget').forEach(widget => {
     const id = widget.dataset.widgetId;
     const header = widget.querySelector('.dash-widget-header');
@@ -3359,18 +3383,20 @@ function initHomeDashboard() {
         const onMove = (ev) => {
           const maxLeft = Math.max(0, canvas.clientWidth - widget.offsetWidth);
           const maxTop = Math.max(0, canvas.clientHeight - widget.offsetHeight);
-          widget.style.left = clamp(startLeft + (ev.clientX - startX), 0, maxLeft) + 'px';
-          widget.style.top = clamp(startTop + (ev.clientY - startY), 0, maxTop) + 'px';
+          const candLeft = clamp(Math.round((startLeft + (ev.clientX - startX)) / HOME_GRID) * HOME_GRID, 0, maxLeft);
+          const candTop = clamp(Math.round((startTop + (ev.clientY - startY)) / HOME_GRID) * HOME_GRID, 0, maxTop);
+          if (!overlapsOtherWidgets(widget, candLeft, candTop, widget.offsetWidth, widget.offsetHeight)) {
+            widget.style.left = candLeft + 'px';
+            widget.style.top = candTop + 'px';
+          }
         };
         const onUp = () => {
           header.removeEventListener('pointermove', onMove);
           header.removeEventListener('pointerup', onUp);
           widget.classList.remove('dragging');
           widget.style.zIndex = '';
-          const snapLeft = Math.round(widget.offsetLeft / 10) * 10;
-          const snapTop = Math.round(widget.offsetTop / 10) * 10;
-          widget.style.left = snapLeft + 'px';
-          widget.style.top = snapTop + 'px';
+          const snapLeft = widget.offsetLeft;
+          const snapTop = widget.offsetTop;
           layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), x: snapLeft, y: snapTop };
           saveHomeLayout(layout);
         };
@@ -3394,21 +3420,19 @@ function initHomeDashboard() {
         const onMove = (ev) => {
           const maxW = canvas.clientWidth - widget.offsetLeft;
           const maxH = canvas.clientHeight - widget.offsetTop;
-          const newW = clamp(startW + (ev.clientX - startX), 240, maxW);
-          const newH = clamp(startH + (ev.clientY - startY), 110, maxH);
-          widget.style.width = newW + 'px';
-          widget.style.height = newH + 'px';
-          if (id === 'minimap' && state.homeMinimap) state.homeMinimap.invalidateSize();
+          const candW = clamp(Math.round((startW + (ev.clientX - startX)) / HOME_GRID) * HOME_GRID, 240, maxW);
+          const candH = clamp(Math.round((startH + (ev.clientY - startY)) / HOME_GRID) * HOME_GRID, 110, maxH);
+          if (!overlapsOtherWidgets(widget, widget.offsetLeft, widget.offsetTop, candW, candH)) {
+            widget.style.width = candW + 'px';
+            widget.style.height = candH + 'px';
+            if (id === 'minimap' && state.homeMinimap) state.homeMinimap.invalidateSize();
+          }
         };
         const onUp = () => {
           resizeHandle.removeEventListener('pointermove', onMove);
           resizeHandle.removeEventListener('pointerup', onUp);
           widget.style.zIndex = '';
-          const snapW = Math.round(widget.offsetWidth / 10) * 10;
-          const snapH = Math.round(widget.offsetHeight / 10) * 10;
-          widget.style.width = snapW + 'px';
-          widget.style.height = snapH + 'px';
-          layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), w: snapW, h: snapH };
+          layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), w: widget.offsetWidth, h: widget.offsetHeight };
           saveHomeLayout(layout);
           if (id === 'minimap' && state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
         };
