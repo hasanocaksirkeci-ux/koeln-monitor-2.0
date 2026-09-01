@@ -380,6 +380,21 @@ if (state.favorites.length === 0) {
 // ==========================================================================
 // 2. Curated 3 High-End Basemaps (Watermark-Free & Unthrottled)
 // ==========================================================================
+// Default Home dashboard widget positions/sizes (px, desktop only) -
+// declared up here (not next to initHomeDashboard() further down) because
+// initApp() below can run synchronously before the rest of the module has
+// executed, and a `const` referenced before its own declaration line runs
+// throws (temporal dead zone) even though the containing function is
+// hoisted fine.
+const HOME_WIDGET_DEFAULTS = {
+  'route-search': { x: 0, y: 40, w: 420, h: 230 },
+  'events': { x: 0, y: 284, w: 420, h: 420 },
+  'minimap': { x: 434, y: 40, w: 420, h: 260 },
+  'weather': { x: 434, y: 314, w: 420, h: 74 },
+  'disruptions': { x: 434, y: 402, w: 420, h: 302 }
+};
+const HOME_LAYOUT_STORAGE_KEY = 'koeln_home_dashboard_layout_v1';
+
 const BASEMAPS = {
   dark: {
     name: 'Cyber Dunkel',
@@ -432,6 +447,8 @@ function initApp() {
   initRoutePlanner();
   initEventsView();
   initHomeView();
+  initHomeMinimap();
+  initHomeDashboard();
   initDisruptionsView();
   initAnalyticsView();
   initWidgetsView();
@@ -588,32 +605,20 @@ function switchTab(tabId) {
       if (transitHud) transitHud.style.display = 'none';
     }
   } else if (transitHud) {
-    // Desktop: this used to unconditionally force display:flex here,
-    // which - being an inline style - always beat the CSS rule that
-    // hides the transit HUD on the Home tab's small map preview card
-    // (.dashboard-sidebar.home-expanded ~ .map-stage .transit-hud-bar).
-    // Clearing the inline override lets that CSS rule actually apply.
     transitHud.style.display = '';
   }
 
-  // The background map recedes into ambient chrome only on the curated
-  // Home welcome screen - everywhere else (including Radar) it stays the
-  // full operational view it already was. On desktop this also shrinks
-  // the map to a small preview card and widens the sidebar into an
-  // actual multi-column dashboard (see .home-expanded in style.css) -
-  // the two classes are always toggled together.
+  // The curated Home welcome screen replaces the real map entirely with a
+  // decorative animated backdrop (#home-bg-lines) behind its own free-form
+  // widget dashboard - everywhere else (including Radar) the real map
+  // stays exactly as it was, untouched by anything Home-tab-related.
   const mapStageEl = document.querySelector('.map-stage');
+  const bgLinesEl = document.getElementById('home-bg-lines');
   const sidebarEl = document.querySelector('.dashboard-sidebar');
   const isHome = tabId === 'home';
-  if (mapStageEl) mapStageEl.classList.toggle('home-dimmed', isHome);
+  if (mapStageEl) mapStageEl.classList.toggle('home-hidden', isHome);
+  if (bgLinesEl) bgLinesEl.classList.toggle('visible', isHome);
   if (sidebarEl) sidebarEl.classList.toggle('home-expanded', isHome);
-
-  // The map's actual pixel box changes size when entering/leaving Home
-  // (not just a CSS filter), so Leaflet needs to re-measure once the
-  // resize transition finishes or its tiles stay cropped to the old box.
-  if (state.map) {
-    setTimeout(() => state.map.invalidateSize(), 320);
-  }
 
   if (tabId === 'map' && state.map) {
     setTimeout(() => {
@@ -621,6 +626,7 @@ function switchTab(tabId) {
     }, 100);
   } else if (tabId === 'home') {
     loadEvents();
+    if (state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
   } else if (tabId === 'departures') {
     fetchDepartures(state.activeStation.id);
   } else if (tabId === 'emergencies') {
@@ -3218,6 +3224,199 @@ function initHomeView() {
   if (allEventsBtn) {
     allEventsBtn.addEventListener('click', () => switchTab('events'));
   }
+}
+
+// Purely decorative overview map for the Home dashboard - a second,
+// independent Leaflet instance (own tiles, own DOM element) instead of
+// resizing/reparenting the real live map. No vehicles/tracks/markers, no
+// polling: it never touches state.map or any live data store.
+function initHomeMinimap() {
+  const el = document.getElementById('home-minimap-el');
+  if (!el || typeof L === 'undefined') return;
+
+  const map = L.map(el, {
+    center: [50.9380, 6.9580],
+    zoom: 12,
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    touchZoom: false,
+    tap: false
+  });
+
+  const cfg = BASEMAPS[state.theme === 'dark' ? 'dark' : 'light'];
+  L.tileLayer(cfg.base, { maxZoom: cfg.maxZoom, maxNativeZoom: cfg.maxNativeZoom }).addTo(map);
+  if (cfg.labels) {
+    L.tileLayer(cfg.labels, { maxZoom: cfg.maxZoom, maxNativeZoom: cfg.maxNativeZoom }).addTo(map);
+  }
+
+  state.homeMinimap = map;
+}
+
+// ==========================================================================
+// Home Dashboard: freely draggable/resizable widgets (desktop only)
+// ==========================================================================
+function loadHomeLayout() {
+  try {
+    const raw = localStorage.getItem(HOME_LAYOUT_STORAGE_KEY);
+    if (!raw) return { ...HOME_WIDGET_DEFAULTS };
+    const parsed = JSON.parse(raw);
+    // Merge over defaults so a widget added in a later version still gets
+    // a sane starting position instead of ending up at (0,0).
+    return { ...HOME_WIDGET_DEFAULTS, ...parsed };
+  } catch {
+    return { ...HOME_WIDGET_DEFAULTS };
+  }
+}
+
+function saveHomeLayout(layout) {
+  try {
+    localStorage.setItem(HOME_LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+  } catch {
+    // Private browsing / storage full - layout just won't persist, not fatal.
+  }
+}
+
+function applyHomeLayout(layout) {
+  // Free positioning is a desktop-only affordance (.dash-widget is only
+  // position:absolute above 900px - see style.css). Below that, inline
+  // left/top/width/height would still apply even though the CSS reverts
+  // widgets to normal flow, forcing every widget to a fixed 420px+ width
+  // and overflowing a narrow mobile viewport - so on mobile these inline
+  // styles are cleared instead of set.
+  const desktop = window.innerWidth > 900;
+  document.querySelectorAll('.dash-widget').forEach(widget => {
+    if (!desktop) {
+      widget.style.left = '';
+      widget.style.top = '';
+      widget.style.width = '';
+      widget.style.height = '';
+      return;
+    }
+    const id = widget.dataset.widgetId;
+    const pos = layout[id] || HOME_WIDGET_DEFAULTS[id];
+    if (!pos) return;
+    widget.style.left = pos.x + 'px';
+    widget.style.top = pos.y + 'px';
+    widget.style.width = pos.w + 'px';
+    widget.style.height = pos.h + 'px';
+  });
+}
+
+function initHomeDashboard() {
+  const canvas = document.getElementById('sidebar-feed-home');
+  if (!canvas) return;
+
+  let layout = loadHomeLayout();
+  applyHomeLayout(layout);
+
+  const resetBtn = document.getElementById('home-reset-layout-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      layout = { ...HOME_WIDGET_DEFAULTS };
+      saveHomeLayout(layout);
+      applyHomeLayout(layout);
+      if (state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
+    });
+  }
+
+  const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
+  const isDesktop = () => window.innerWidth > 900;
+
+  // Re-apply (or clear) inline positioning when crossing the desktop/mobile
+  // breakpoint live, e.g. a resized browser window rather than a reload.
+  let wasDesktop = isDesktop();
+  window.addEventListener('resize', () => {
+    const nowDesktop = isDesktop();
+    if (nowDesktop !== wasDesktop) {
+      wasDesktop = nowDesktop;
+      applyHomeLayout(layout);
+      if (state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
+    }
+  });
+
+  document.querySelectorAll('.dash-widget').forEach(widget => {
+    const id = widget.dataset.widgetId;
+    const header = widget.querySelector('.dash-widget-header');
+    const resizeHandle = widget.querySelector('.dash-widget-resize-handle');
+
+    if (header) {
+      header.addEventListener('pointerdown', (e) => {
+        if (!isDesktop() || e.target.closest('button')) return;
+        e.preventDefault();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLeft = widget.offsetLeft;
+        const startTop = widget.offsetTop;
+        widget.classList.add('dragging');
+        widget.style.zIndex = 60;
+        header.setPointerCapture(e.pointerId);
+
+        const onMove = (ev) => {
+          const maxLeft = Math.max(0, canvas.clientWidth - widget.offsetWidth);
+          const maxTop = Math.max(0, canvas.clientHeight - widget.offsetHeight);
+          widget.style.left = clamp(startLeft + (ev.clientX - startX), 0, maxLeft) + 'px';
+          widget.style.top = clamp(startTop + (ev.clientY - startY), 0, maxTop) + 'px';
+        };
+        const onUp = () => {
+          header.removeEventListener('pointermove', onMove);
+          header.removeEventListener('pointerup', onUp);
+          widget.classList.remove('dragging');
+          widget.style.zIndex = '';
+          const snapLeft = Math.round(widget.offsetLeft / 10) * 10;
+          const snapTop = Math.round(widget.offsetTop / 10) * 10;
+          widget.style.left = snapLeft + 'px';
+          widget.style.top = snapTop + 'px';
+          layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), x: snapLeft, y: snapTop };
+          saveHomeLayout(layout);
+        };
+        header.addEventListener('pointermove', onMove);
+        header.addEventListener('pointerup', onUp);
+      });
+    }
+
+    if (resizeHandle) {
+      resizeHandle.addEventListener('pointerdown', (e) => {
+        if (!isDesktop()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = widget.offsetWidth;
+        const startH = widget.offsetHeight;
+        widget.style.zIndex = 60;
+        resizeHandle.setPointerCapture(e.pointerId);
+
+        const onMove = (ev) => {
+          const maxW = canvas.clientWidth - widget.offsetLeft;
+          const maxH = canvas.clientHeight - widget.offsetTop;
+          const newW = clamp(startW + (ev.clientX - startX), 240, maxW);
+          const newH = clamp(startH + (ev.clientY - startY), 110, maxH);
+          widget.style.width = newW + 'px';
+          widget.style.height = newH + 'px';
+          if (id === 'minimap' && state.homeMinimap) state.homeMinimap.invalidateSize();
+        };
+        const onUp = () => {
+          resizeHandle.removeEventListener('pointermove', onMove);
+          resizeHandle.removeEventListener('pointerup', onUp);
+          widget.style.zIndex = '';
+          const snapW = Math.round(widget.offsetWidth / 10) * 10;
+          const snapH = Math.round(widget.offsetHeight / 10) * 10;
+          widget.style.width = snapW + 'px';
+          widget.style.height = snapH + 'px';
+          layout[id] = { ...(layout[id] || HOME_WIDGET_DEFAULTS[id]), w: snapW, h: snapH };
+          saveHomeLayout(layout);
+          if (id === 'minimap' && state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
+        };
+        resizeHandle.addEventListener('pointermove', onMove);
+        resizeHandle.addEventListener('pointerup', onUp);
+      });
+    }
+  });
 }
 
 // Home tab: fills the space next to the map preview / weather pill with

@@ -9,7 +9,7 @@
      Gray" basemap tone (see BASEMAPS.dark in app.js) so any area where
      no map tiles are visible (e.g. the Home tab's widened dashboard)
      reads as the same gray-glass material instead of a colder blue void. */
-  --bg-canvas: #161616;
+  --bg-canvas: #505052;
   --bg-sidebar: #0c0f17;
   --bg-surface: #121622;
   --bg-surface-elevated: #181e2e;
@@ -467,32 +467,14 @@ button svg { pointer-events: none; }
   transition: width var(--transition-smooth);
 }
 
-/* Home tab: the sidebar becomes the actual dashboard instead of a narrow
-   list next to a full-bleed map - it widens into the space the map gives
-   up when it shrinks to a preview card (see .map-stage.home-dimmed). */
+/* Home tab: the sidebar becomes a full-width free-form dashboard canvas
+   instead of a narrow list next to the map - see .dash-widget rules and
+   #sidebar-feed-home below for the actual widget grid. */
 @media (min-width: 901px) {
   .dashboard-sidebar.home-expanded {
-    width: calc(100% - 560px - 48px);
+    width: auto;
+    right: 16px;
   }
-
-  /* Reflows the same 4 existing blocks (no HTML change) into a real
-     multi-column dashboard instead of one stacked column stretched wide. */
-  .dashboard-sidebar.home-expanded #sidebar-feed-home {
-    display: grid;
-    grid-template-columns: 1.3fr 1fr;
-    grid-template-areas:
-      "search search"
-      "header header"
-      "hero more";
-    gap: 1rem;
-    align-items: start;
-  }
-
-  .dashboard-sidebar.home-expanded .home-hero-search { grid-area: search; margin: 0; }
-  .dashboard-sidebar.home-expanded .home-section-header { grid-area: header; margin: 0; }
-  .dashboard-sidebar.home-expanded #home-events-hero { grid-area: hero; margin: 0; }
-  .dashboard-sidebar.home-expanded #home-events-more { grid-area: more; margin: 0; }
-  .dashboard-sidebar.home-expanded .home-event-hero { min-height: 220px; }
 }
 
 .sidebar-header {
@@ -782,19 +764,125 @@ button svg { pointer-events: none; }
   padding: 0.75rem 0.6rem 0.5rem;
 }
 
-/* Home tab: hero route search + hero event card */
-.home-hero-search {
+/* Home tab: freely draggable/resizable widget dashboard.
+   Mobile default (<901px): plain stacked flow, no positioning at all -
+   drag/resize is a desktop-only affordance. */
+#sidebar-feed-home {
+  position: relative;
+}
+
+/* Two classes so this reliably beats .action-btn's own display:inline-flex
+   (equal-specificity rules are decided by source order, and .action-btn's
+   base rule happens to come later in the file). */
+.action-btn.home-reset-layout-btn {
+  display: none;
+}
+
+.dash-widget {
+  display: flex;
+  flex-direction: column;
   background: var(--glass-chip-bg);
   border: 1px solid var(--glass-chip-border);
   border-radius: var(--radius-md);
-  padding: 0.85rem 0.75rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
 }
 
-.home-section-header {
+.dash-widget-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--glass-chip-border);
+  flex-shrink: 0;
+}
+
+.dash-widget-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.dash-widget-body {
+  flex: 1;
+  padding: 0.75rem;
+  min-height: 0;
+}
+
+.dash-widget-body.no-pad {
+  padding: 0;
+}
+
+.dash-widget-resize-handle {
+  display: none;
+}
+
+/* Desktop: the panel becomes a full free-form canvas - each widget is
+   absolutely positioned (px, from JS/localStorage via initHomeDashboard())
+   and gets a drag handle (header) + resize handle (corner grip). */
+@media (min-width: 901px) {
+  #sidebar-feed-home {
+    width: 100%;
+    height: 100%;
+  }
+
+  .action-btn.home-reset-layout-btn {
+    display: inline-flex;
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 50;
+  }
+
+  .dash-widget {
+    position: absolute;
+    margin-bottom: 0;
+    box-shadow: var(--shadow-md);
+  }
+
+  .dash-widget.dragging {
+    box-shadow: var(--shadow-lg);
+    opacity: 0.94;
+  }
+
+  .dash-widget-header {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .dash-widget-header:active {
+    cursor: grabbing;
+  }
+
+  .dash-widget-body {
+    overflow: auto;
+  }
+
+  .dash-widget-resize-handle {
+    display: block;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(135deg, transparent 55%, var(--text-muted) 55%);
+    opacity: 0.5;
+  }
+
+  .dash-widget-resize-handle:hover {
+    opacity: 1;
+  }
+}
+
+#home-minimap-el {
+  width: 100%;
+  height: 100%;
 }
 
 .home-event-hero {
@@ -1303,7 +1391,7 @@ button svg { pointer-events: none; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #161616;
+  background: #505052;
   filter: none;
   transition: filter var(--transition-smooth), top var(--transition-smooth),
     right var(--transition-smooth), bottom var(--transition-smooth),
@@ -1311,88 +1399,60 @@ button svg { pointer-events: none; }
     height var(--transition-smooth), border-radius var(--transition-smooth);
 }
 
-/* Home tab is a curated welcome screen, not the operations cockpit - on
-   desktop the map shrinks down to a plain, sharp preview card (no blur/
-   dim - a blurred map serves no one) so the dashboard can widen into the
-   freed-up space (see .dashboard-sidebar.home-expanded below). */
-@media (min-width: 901px) {
-  .map-stage.home-dimmed {
-    inset: auto;
-    top: 96px;
-    right: 16px;
-    left: auto;
-    bottom: auto;
-    width: 560px;
-    height: 320px;
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg), var(--inner-bevel);
-    border: 1px solid var(--border-medium);
-    z-index: 901;
-  }
-}
-
-/* On the small preview card this is a plain glance at the city, not the
-   operations view: no controls (layers, transit HUD, AI button, zoom)
-   and no live overlays (tracks/stations/vehicles/emergencies panes,
-   plus the default marker pane bikes/parking/pegel pins would use if
-   the user had those layers on). Same sibling-selector pattern already
-   used for the mobile-open drawer state. */
-.dashboard-sidebar.home-expanded ~ .map-stage .map-floating-ribbon,
-.dashboard-sidebar.home-expanded ~ .map-stage .transit-hud-bar,
-.dashboard-sidebar.home-expanded ~ .map-stage .map-ai-trigger-btn,
-.dashboard-sidebar.home-expanded ~ .map-stage .cockpit-hud,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-zoom,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-attribution,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-tracks-pane,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-stations-pane,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-vehicles-pane,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-emergencies-pane,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-marker-pane {
+/* Home tab: the real map is hidden entirely (not resized/dimmed anymore)
+   and replaced by the decorative #home-bg-lines backdrop behind the
+   free-form widget dashboard - see switchTab() in app.js. This also
+   means the map's own state (layers, live vehicles, blur) never has to
+   interact with the Home tab at all. */
+.map-stage.home-hidden {
   display: none;
 }
 
-/* Home tab only: compact weather pill fixed under the map preview card
-   (same right-hand column, not part of the scrolling sidebar content).
-   Deliberately small - a single number doesn't need a full-height card. */
+/* Dynamic line-grid backdrop, Home tab only. Purely decorative (no data),
+   pulses gently so the glass widgets floating over it read as "glass"
+   (translucency needs something with contrast behind it) instead of a
+   flat void, without needing to match real map-tile colors. */
+.home-bg-lines {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.home-bg-lines.visible {
+  display: block;
+}
+
+.home-bg-lines .grid-line {
+  stroke: var(--text-primary);
+  stroke-width: 1;
+  opacity: 0.05;
+}
+
+.home-bg-lines .sweep-line {
+  stroke: var(--vexto-cyan, #00f0ff);
+  stroke-width: 1;
+  opacity: 0.04;
+  animation: home-line-pulse 7s ease-in-out infinite;
+}
+
+.home-bg-lines .d1 { animation-delay: 0s; }
+.home-bg-lines .d2 { animation-delay: 1.8s; }
+.home-bg-lines .d3 { animation-delay: 3.6s; }
+.home-bg-lines .d4 { animation-delay: 5.4s; }
+
+@keyframes home-line-pulse {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.22; }
+}
+
 .home-weather-card {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.6rem 0.85rem;
-}
-
-@media (min-width: 901px) {
-  .dashboard-sidebar.home-expanded ~ .home-weather-card {
-    display: flex;
-    position: fixed;
-    top: calc(96px + 320px + 12px);
-    right: 16px;
-    width: 560px;
-    height: 56px;
-    background: var(--bg-glass-strong);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg), var(--inner-bevel);
-    z-index: 901;
-  }
-
-  .dashboard-sidebar.home-expanded ~ .home-disruptions-card {
-    display: flex;
-    position: fixed;
-    top: calc(96px + 320px + 12px + 56px + 12px);
-    right: 16px;
-    bottom: 16px;
-    width: 560px;
-    background: var(--bg-glass-strong);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg), var(--inner-bevel);
-    z-index: 901;
-  }
+  height: 100%;
 }
 
 .home-weather-icon {
@@ -1404,13 +1464,6 @@ button svg { pointer-events: none; }
   font-size: 1rem;
   font-weight: 800;
   color: var(--text-primary);
-}
-
-.home-disruptions-card {
-  display: none;
-  flex-direction: column;
-  padding: 0.9rem;
-  overflow-y: auto;
 }
 
 .home-weather-cond {
@@ -1606,7 +1659,7 @@ button svg { pointer-events: none; }
 .map-element {
   width: 100%;
   height: 100%;
-  background: #161616;
+  background: #505052;
 }
 
 /* ============================================== -->

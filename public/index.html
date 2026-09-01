@@ -29,6 +29,28 @@
 
   <div class="dashboard-layout">
 
+    <!-- Home tab only: dynamic pulsing line-grid backdrop, replaces the
+         live map behind the free-form widget dashboard (see .home-bg-lines
+         / .map-stage.home-hidden in style.css, toggled in switchTab()).
+         Purely decorative - suggests a street grid, not real data. -->
+    <svg id="home-bg-lines" class="home-bg-lines" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="home-bg-grid" width="120" height="120" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="120" y2="0" class="grid-line" />
+          <line x1="0" y1="0" x2="0" y2="120" class="grid-line" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#home-bg-grid)" />
+      <line x1="0" y1="14%" x2="100%" y2="14%" class="sweep-line d1" />
+      <line x1="0" y1="38%" x2="100%" y2="38%" class="sweep-line d2" />
+      <line x1="0" y1="63%" x2="100%" y2="63%" class="sweep-line d3" />
+      <line x1="0" y1="86%" x2="100%" y2="86%" class="sweep-line d4" />
+      <line x1="18%" y1="0" x2="18%" y2="100%" class="sweep-line d2" />
+      <line x1="47%" y1="0" x2="47%" y2="100%" class="sweep-line d4" />
+      <line x1="72%" y1="0" x2="72%" y2="100%" class="sweep-line d1" />
+      <line x1="90%" y1="0" x2="90%" y2="100%" class="sweep-line d3" />
+    </svg>
+
     <!-- ============================================== -->
     <!-- 1. LEFT NAVIGATION RAIL (68px)                 -->
     <!-- ============================================== -->
@@ -181,29 +203,80 @@
       <!-- Scrollable Dynamic Operations Feed Area -->
       <div class="sidebar-content-scroll">
 
-        <!-- FEED 0: Home / Startansicht -->
+        <!-- FEED 0: Home / Startansicht - freies Widget-Dashboard (Desktop);
+             fällt auf Mobile automatisch auf gestapelte Blöcke zurück, siehe
+             .dash-widget Regeln in style.css -->
         <div class="sidebar-feed-panel active" id="sidebar-feed-home">
-          <div class="home-hero-search">
-            <h4 class="sidebar-sub-heading" style="margin-top:0;">Wie komme ich hin?</h4>
-            <div style="position:relative;" class="mb-2">
-              <input type="text" id="home-from-input" class="modern-input" placeholder="Start (z.B. Florastr.)" value="Köln Florastr." autocomplete="off">
-              <div id="home-from-autocomplete" class="autocomplete-list" style="display:none;"></div>
+          <button id="home-reset-layout-btn" class="action-btn secondary small home-reset-layout-btn" title="Widget-Anordnung zurücksetzen">↺ Layout zurücksetzen</button>
+
+          <div class="dash-widget" data-widget-id="route-search">
+            <div class="dash-widget-header">
+              <span class="dash-widget-title">Wie komme ich hin?</span>
             </div>
-            <div style="position:relative;" class="mt-2">
-              <input type="text" id="home-to-input" class="modern-input" placeholder="Ziel eingeben..." autocomplete="off">
-              <div id="home-to-autocomplete" class="autocomplete-list" style="display:none;"></div>
+            <div class="dash-widget-body">
+              <div style="position:relative;" class="mb-2">
+                <input type="text" id="home-from-input" class="modern-input" placeholder="Start (z.B. Florastr.)" value="Köln Florastr." autocomplete="off">
+                <div id="home-from-autocomplete" class="autocomplete-list" style="display:none;"></div>
+              </div>
+              <div style="position:relative;" class="mt-2">
+                <input type="text" id="home-to-input" class="modern-input" placeholder="Ziel eingeben..." autocomplete="off">
+                <div id="home-to-autocomplete" class="autocomplete-list" style="display:none;"></div>
+              </div>
+              <button id="home-calculate-route-btn" class="action-btn primary full-width mt-2">
+                <span>Route berechnen ➔</span>
+              </button>
             </div>
-            <button id="home-calculate-route-btn" class="action-btn primary full-width mt-2">
-              <span>Route berechnen ➔</span>
-            </button>
+            <div class="dash-widget-resize-handle" aria-hidden="true"></div>
           </div>
 
-          <div class="home-section-header mt-3">
-            <h4 class="sidebar-sub-heading" style="margin:0;">Was ist los in Köln?</h4>
-            <button id="home-all-events-btn" class="action-btn secondary small">Alle ansehen ➔</button>
+          <div class="dash-widget" data-widget-id="events">
+            <div class="dash-widget-header">
+              <span class="dash-widget-title">Was ist los in Köln?</span>
+              <button id="home-all-events-btn" class="action-btn secondary small">Alle ansehen ➔</button>
+            </div>
+            <div class="dash-widget-body">
+              <div id="home-events-hero"></div>
+              <div id="home-events-more" class="mt-2"></div>
+            </div>
+            <div class="dash-widget-resize-handle" aria-hidden="true"></div>
           </div>
-          <div id="home-events-hero" class="mt-2"></div>
-          <div id="home-events-more" class="mt-2"></div>
+
+          <div class="dash-widget" data-widget-id="minimap">
+            <div class="dash-widget-header">
+              <span class="dash-widget-title">Köln</span>
+            </div>
+            <div class="dash-widget-body no-pad">
+              <div id="home-minimap-el"></div>
+            </div>
+            <div class="dash-widget-resize-handle" aria-hidden="true"></div>
+          </div>
+
+          <div class="dash-widget" data-widget-id="weather">
+            <div class="dash-widget-header">
+              <span class="dash-widget-title">Wetter</span>
+            </div>
+            <div class="dash-widget-body">
+              <div class="home-weather-card">
+                <div class="home-weather-icon" id="home-weather-icon">--</div>
+                <div>
+                  <div class="home-weather-temp" id="home-weather-temp">--°C</div>
+                  <div class="home-weather-cond" id="home-weather-cond">Wetter wird geladen...</div>
+                </div>
+              </div>
+            </div>
+            <div class="dash-widget-resize-handle" aria-hidden="true"></div>
+          </div>
+
+          <div class="dash-widget" data-widget-id="disruptions">
+            <div class="dash-widget-header">
+              <span class="dash-widget-title">Betriebslage</span>
+              <span class="panel-status-slot" id="home-disruptions-status-badge"></span>
+            </div>
+            <div class="dash-widget-body">
+              <div id="home-disruptions-list"></div>
+            </div>
+            <div class="dash-widget-resize-handle" aria-hidden="true"></div>
+          </div>
         </div>
 
         <!-- FEED 1: Live-Radar Stream (Default for Tab Map) -->
@@ -568,7 +641,7 @@
     <!-- ============================================== -->
     <!-- 3. MAIN MAP STAGE (FRAMED MISSION CANVAS)      -->
     <!-- ============================================== -->
-    <main class="map-stage home-dimmed">
+    <main class="map-stage home-hidden">
 
       <!-- Map Floating Control Ribbon -->
       <div class="map-floating-ribbon">
@@ -780,26 +853,6 @@
       </div>
 
     </main>
-
-    <!-- Home tab only (desktop): compact weather card under the shrunk
-         map preview - see .home-weather-card / #home-weather-card in app.js -->
-    <div id="home-weather-card" class="home-weather-card">
-      <div class="home-weather-icon" id="home-weather-icon">--</div>
-      <div>
-        <div class="home-weather-temp" id="home-weather-temp">--°C</div>
-        <div class="home-weather-cond" id="home-weather-cond">Wetter wird geladen...</div>
-      </div>
-    </div>
-
-    <!-- Home tab only (desktop): real, already-loaded Störungen-Status
-         instead of leaving this space empty - see loadDisruptions() -->
-    <div id="home-disruptions-card" class="home-disruptions-card">
-      <div class="home-section-header" style="margin-bottom:0.6rem;">
-        <h4 class="sidebar-sub-heading" style="margin:0;">Betriebslage</h4>
-        <span class="panel-status-slot" id="home-disruptions-status-badge"></span>
-      </div>
-      <div id="home-disruptions-list"></div>
-    </div>
 
     <!-- ============================================== -->
     <!-- 4. RIGHT INSPECTOR DRAWERS                     -->
