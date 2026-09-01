@@ -588,7 +588,12 @@ function switchTab(tabId) {
       if (transitHud) transitHud.style.display = 'none';
     }
   } else if (transitHud) {
-    transitHud.style.display = 'flex';
+    // Desktop: this used to unconditionally force display:flex here,
+    // which - being an inline style - always beat the CSS rule that
+    // hides the transit HUD on the Home tab's small map preview card
+    // (.dashboard-sidebar.home-expanded ~ .map-stage .transit-hud-bar).
+    // Clearing the inline override lets that CSS rule actually apply.
+    transitHud.style.display = '';
   }
 
   // The background map recedes into ambient chrome only on the curated
@@ -1094,7 +1099,7 @@ function updateRadarTelemetryError(store) {
   const container = document.getElementById('vehicle-stream-list');
   if (container) {
     container.innerHTML = `
-      <div class="glass-panel p-4 text-center text-rose">
+      <div class="glass-panel nested p-4 text-center text-rose">
         <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
         <div style="font-weight:700;">Radar vorübergehend nicht erreichbar</div>
         <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Verbindung zum KVB-Server fehlgeschlagen')}</div>
@@ -1456,7 +1461,11 @@ function plotRouteTrackOnMap({ fromName, toName, coordinates, lineColor, startPo
     state.aiEndMarker = null;
   }
 
-  switchTab('map');
+  // Used to force-switch to the Radar tab here, which hid the just-computed
+  // route results list the user might still want to look at. The map is
+  // always visible in the background regardless of the active sidebar tab
+  // (map-first layout) - drawing onto it doesn't require leaving the
+  // current tab, so this now stays wherever the user already is.
 
   const color = lineColor || '#10B981';
   const group = L.featureGroup();
@@ -1544,7 +1553,7 @@ async function loadEmergencies(force = false) {
     const container = document.getElementById('emergencies-list');
     if (container && state.emergencies.length === 0) {
       container.innerHTML = `
-        <div class="glass-panel p-4 text-center text-rose">
+        <div class="glass-panel nested p-4 text-center text-rose">
           <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
           <div style="font-weight:700;">Blaulicht-Daten nicht verfügbar</div>
           <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Fehler beim Laden')}</div>
@@ -1594,7 +1603,7 @@ function renderEmergenciesList() {
   });
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Einsätze in dieser Kategorie gefunden.</div>`;
+    container.innerHTML = `<div class="glass-panel nested text-center py-6 text-muted">Keine Einsätze in dieser Kategorie gefunden.</div>`;
     return;
   }
 
@@ -1602,7 +1611,7 @@ function renderEmergenciesList() {
   // "Feuerwehr") is provenance, not the headline, so it moved into the
   // secondary meta row instead of being the first thing shown.
   container.innerHTML = filtered.map(em => `
-    <div class="glass-panel p-4" style="cursor:pointer;" onclick="window.appOpenEmergency('${em.id}')">
+    <div class="glass-panel nested p-4" style="cursor:pointer;" onclick="window.appOpenEmergency('${em.id}')">
       <h4 style="font-weight:700; font-size:0.95rem;">${escapeHtml(em.title)}</h4>
       <div class="mt-2" style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
         <span class="dock-badge-alert">${em.category === 'fire' ? 'Feuerwehr' : 'Polizei Köln'}</span>
@@ -1694,7 +1703,7 @@ async function loadBikes(force = false) {
     const container = document.getElementById('bikes-stations-grid');
     if (container && !state.bikesData) {
       container.innerHTML = `
-        <div class="glass-panel p-4 text-center text-rose">
+        <div class="glass-panel nested p-4 text-center text-rose">
           <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
           <div style="font-weight:700;">KVB-Rad Live-Daten nicht verfügbar</div>
           <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Fehler beim Laden')}</div>
@@ -1801,7 +1810,7 @@ function renderBikesList() {
 
   const stations = state.bikesData.stations || [];
   container.innerHTML = stations.slice(0, 60).map(s => `
-    <div class="glass-panel p-3" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="window.appFlyToBike(${s.lat}, ${s.lng})">
+    <div class="glass-panel nested p-3" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="window.appFlyToBike(${s.lat}, ${s.lng})">
       <div>
         <h4 style="font-weight:700; font-size:0.85rem;">${escapeHtml(s.name)}</h4>
         <span class="text-muted" style="font-size:0.75rem;">Freie Plätze: ${s.freeRacks}/${s.bikeRacks}</span>
@@ -1957,7 +1966,7 @@ function renderSavedRoutes() {
 
   if (state.savedRoutes.length === 0) {
     list.innerHTML = `
-      <div class="glass-panel p-3" style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="glass-panel nested p-3" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
           <b>Florastr. ➔ Neumarkt</b>
           <div class="text-muted" style="font-size:0.75rem;">Standard-Pendlerroute (Linien 12 & 15)</div>
@@ -1971,7 +1980,7 @@ function renderSavedRoutes() {
   }
 
   list.innerHTML = state.savedRoutes.map(r => `
-    <div class="glass-panel p-3" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+    <div class="glass-panel nested p-3" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
       <div>
         <b>${escapeHtml(r.name || `${r.from_name} ➔ ${r.to_name}`)}</b>
         <div class="text-muted" style="font-size:0.75rem;">${escapeHtml(r.from_name)} nach ${escapeHtml(r.to_name)}</div>
@@ -2468,7 +2477,7 @@ function renderDrawerDepartures() {
     const tMin = dep.timeMinutes || (dep.minutesUntil !== undefined ? (dep.minutesUntil === 0 ? 'Jetzt' : `in ${dep.minutesUntil} Min.`) : pTime);
 
     return `
-      <div class="glass-panel p-3 mb-2" style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="glass-panel nested p-3 mb-2" style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <span class="line-badge" style="background:${dep.lineColor || '#00f0ff'}; color:${dep.lineTextColor || '#05070a'};">
             ${dep.line}
@@ -2773,7 +2782,7 @@ async function calculateKvbRoute(from, to) {
   container.style.display = 'block';
 
   listEl.innerHTML = `
-    <div class="glass-panel text-center py-6">
+    <div class="glass-panel nested text-center py-6">
       <div class="spinner"></div>
       <div class="mt-2 text-muted">Berechne Verbindung von "${escapeHtml(from)}" nach "${escapeHtml(to)}"...</div>
     </div>
@@ -2790,7 +2799,7 @@ async function calculateKvbRoute(from, to) {
     // appPlotCalculatedRoute, no separate state needed.
 
     if (routes.length === 0) {
-      listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Verbindung gefunden.</div>`;
+      listEl.innerHTML = `<div class="glass-panel nested text-center py-6 text-muted">Keine Verbindung gefunden.</div>`;
       return;
     }
 
@@ -2800,7 +2809,7 @@ async function calculateKvbRoute(from, to) {
       const routeEncoded = encodeURIComponent(JSON.stringify(r));
 
       return `
-        <div class="glass-panel p-4 mb-3">
+        <div class="glass-panel nested p-4 mb-3">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div>
               <span class="mono" style="font-weight:800; font-size:1.1rem;">${depTimeStr} ➔ ${arrTimeStr}</span>
@@ -2818,7 +2827,7 @@ async function calculateKvbRoute(from, to) {
       `;
     }).join('');
   } else {
-    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-rose">⛔ Verbindung nicht berechenbar: ${escapeHtml(store.error || 'Fehler')}</div>`;
+    listEl.innerHTML = `<div class="glass-panel nested text-center py-6 text-rose">⛔ Verbindung nicht berechenbar: ${escapeHtml(store.error || 'Fehler')}</div>`;
   }
 }
 
@@ -2831,7 +2840,7 @@ async function calculateDriveRoute(from, to, mode) {
 
   const modeLabel = ROUTE_MODE_LABELS[mode] || mode;
   listEl.innerHTML = `
-    <div class="glass-panel text-center py-6">
+    <div class="glass-panel nested text-center py-6">
       <div class="spinner"></div>
       <div class="mt-2 text-muted">Berechne ${modeLabel}-Route von "${escapeHtml(from)}" nach "${escapeHtml(to)}"...</div>
     </div>
@@ -2847,7 +2856,7 @@ async function calculateDriveRoute(from, to, mode) {
     const routeEncoded = encodeURIComponent(JSON.stringify({ coordinates: r.coordinates }));
 
     listEl.innerHTML = `
-      <div class="glass-panel p-4 mb-3">
+      <div class="glass-panel nested p-4 mb-3">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span class="mono" style="font-weight:800; font-size:1.1rem;">${km} km</span>
           <span class="dock-badge-alert" style="background:var(--vexto-emerald); color:#000;">
@@ -2863,7 +2872,7 @@ async function calculateDriveRoute(from, to, mode) {
     `;
   } else {
     const errMsg = store.data?.error || store.error || 'Route nicht berechenbar';
-    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-rose">⛔ ${escapeHtml(errMsg)}</div>`;
+    listEl.innerHTML = `<div class="glass-panel nested text-center py-6 text-rose">⛔ ${escapeHtml(errMsg)}</div>`;
   }
 }
 
@@ -3040,7 +3049,7 @@ async function loadEvents(force = false) {
     renderEventCards(events);
     renderHomeEventPreview(events);
   } else {
-    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
+    listEl.innerHTML = `<div class="glass-panel nested text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
     renderHomeEventPreview([]);
   }
 }
@@ -3053,7 +3062,7 @@ function renderEventCards(events) {
   const filtered = activeDistrict ? events.filter(e => e.district === activeDistrict) : events;
 
   if (filtered.length === 0) {
-    listEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Keine Veranstaltungen gefunden.</div>`;
+    listEl.innerHTML = `<div class="glass-panel nested text-center py-6 text-muted">Keine Veranstaltungen gefunden.</div>`;
     return;
   }
 
@@ -3135,7 +3144,7 @@ function renderHomeEventPreview(events) {
   if (!heroEl || !moreEl) return;
 
   if (events.length === 0) {
-    heroEl.innerHTML = `<div class="glass-panel text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
+    heroEl.innerHTML = `<div class="glass-panel nested text-center py-6 text-muted">Veranstaltungen derzeit nicht verfügbar.</div>`;
     moreEl.innerHTML = '';
     return;
   }
@@ -3295,7 +3304,7 @@ async function loadDisruptions(force = false) {
     const container = document.getElementById('stadtbahn-status-grid');
     if (container && !state.disruptions) {
       container.innerHTML = `
-        <div class="glass-panel p-4 text-center text-rose">
+        <div class="glass-panel nested p-4 text-center text-rose">
           <div style="font-size:1.5rem; margin-bottom:0.4rem;">⛔</div>
           <div style="font-weight:700;">Betriebslage-Daten nicht verfügbar</div>
           <div class="text-muted mt-1" style="font-size:0.75rem;">${escapeHtml(store.error || 'Fehler beim Laden')}</div>
@@ -3323,7 +3332,7 @@ function renderDisruptionsGrid() {
 
   if (filtered.length === 0) {
     container.innerHTML = `
-      <div class="glass-panel p-4 text-center">
+      <div class="glass-panel nested p-4 text-center">
         <div style="font-size:1.8rem; margin-bottom:0.5rem;">🎉</div>
         <div style="font-weight:800; color:var(--vexto-emerald);">Keine aktuellen Störungen</div>
         <div class="text-muted mt-1" style="font-size:0.75rem;">Alle Linien im regulären Fahrplanbetrieb.</div>
@@ -3411,7 +3420,7 @@ window.appOpenDisruption = function(lineId) {
   const bodyEl = document.getElementById('modal-body');
   if (bodyEl) {
     bodyEl.innerHTML = reports.map((r, idx) => `
-      <div class="glass-panel p-3 mb-2" style="background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
+      <div class="glass-panel nested p-3 mb-2" style="background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <span style="font-size:0.75rem; font-weight:800; color:${r.status === 'green' ? 'var(--vexto-emerald)' : (r.status === 'red' ? 'var(--vexto-rose)' : 'var(--vexto-amber)')};">
             ${r.hasSEV ? '🚨 Schienenersatzverkehr (SEV)' : (r.status === 'green' ? '✓ Normalbetrieb' : '⚠️ Betriebsstörung')}

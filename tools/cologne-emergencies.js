@@ -289,6 +289,66 @@ function formatTimeAgo(dateStr) {
   return `vor ${diffDays} Tag${diffDays > 1 ? 'en' : ''}`;
 }
 
+// Parses one Presseportal RSS feed into emergency records. Police and
+// Feuerwehr Köln are two separate Presseportal "Dienststellen" (feeds) -
+// previously only the police feed was fetched, so the Feuerwehr filter
+// always came back empty even though the UI offered it.
+async function fetchAndParseFeed({ url, source, category: forceCategory, titlePrefixPattern, idPrefix }) {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'KoelnLiveMonitor/2.0' },
+    signal: AbortSignal.timeout(6000)
+  });
+  if (!res.ok) throw new Error(`Presseportal HTTP ${res.status} (${source})`);
+
+  const xml = await res.text();
+  const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/gi) || [];
+  const emergencies = [];
+
+  for (const it of itemMatches) {
+    const rawTitle = (it.match(/<title>([\s\S]*?)<\/title>/i) || [])[1]?.replace('<![CDATA[', '').replace(']]>', '').trim() || '';
+    const link = (it.match(/<link>([\s\S]*?)<\/link>/i) || [])[1]?.trim() || '';
+    const guid = (it.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i) || [])[1]?.trim() || link;
+    const pubDate = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]?.trim() || new Date().toISOString();
+    const rawDesc = (it.match(/<description>([\s\S]*?)<\/description>/i) || [])[1]?.replace('<![CDATA[', '').replace(']]>', '').replace(/<[^>]+>/g, '').trim() || '';
+
+    const cleanTitle = rawTitle.replace(titlePrefixPattern, '').trim();
+
+    // Multi-stage location detection
+    let districtInfo = detectDistrict(rawTitle, rawDesc);
+    if (!districtInfo.lat) {
+      const aiInfo = await extractLocationViaAI(rawTitle, rawDesc);
+      if (aiInfo && aiInfo.lat) {
+        districtInfo = aiInfo;
+      }
+    }
+    // A forced category (Feuerwehr feed = every item is a fire/rescue
+    // callout) is more reliable than keyword-guessing from the title,
+    // which is what the police feed still falls back to.
+    const category = forceCategory || detectCategory(rawTitle, rawDesc);
+    const isCritical = category === 'critical' || rawTitle.includes('Schüsse') || rawTitle.includes('Zeugen');
+
+    const id = guid.split('/').pop() || `${idPrefix}-${Date.parse(pubDate)}-${Math.floor(Math.random() * 1000)}`;
+
+    emergencies.push({
+      id,
+      source,
+      category,
+      title: cleanTitle || rawTitle,
+      district: districtInfo.name,
+      lat: districtInfo.lat,
+      lng: districtInfo.lng,
+      hasExactCoordinates: !!districtInfo.lat,
+      pubDate: new Date(pubDate).toISOString(),
+      timeAgo: formatTimeAgo(pubDate),
+      description: rawDesc,
+      link,
+      isCritical
+    });
+  }
+
+  return emergencies;
+}
+
 export async function fetchCologneEmergencies() {
   const now = Date.now();
   if (emergenciesCache.data && (now - emergenciesCache.timestamp) < CACHE_TTL_MS) {
@@ -298,59 +358,36 @@ export async function fetchCologneEmergencies() {
   const nowIso = new Date().toISOString();
 
   try {
-    const res = await fetch('https://www.presseportal.de/rss/dienststelle_12415.rss2', {
-      headers: { 'User-Agent': 'KoelnLiveMonitor/2.0' },
-      signal: AbortSignal.timeout(6000)
-    });
-
-    if (!res.ok) {
-      throw new Error(`Presseportal HTTP ${res.status}`);
-    }
-
-    const xml = await res.text();
-    const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/gi) || [];
-
-    const emergencies = [];
-
-    for (const it of itemMatches) {
-      const rawTitle = (it.match(/<title>([\s\S]*?)<\/title>/i) || [])[1]?.replace('<![CDATA[', '').replace(']]>', '').trim() || '';
-      const link = (it.match(/<link>([\s\S]*?)<\/link>/i) || [])[1]?.trim() || '';
-      const guid = (it.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i) || [])[1]?.trim() || link;
-      const pubDate = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1]?.trim() || new Date().toISOString();
-      const rawDesc = (it.match(/<description>([\s\S]*?)<\/description>/i) || [])[1]?.replace('<![CDATA[', '').replace(']]>', '').replace(/<[^>]+>/g, '').trim() || '';
-
-      // Clean title prefix (e.g. POL-K: 260826-1-K)
-      const cleanTitle = rawTitle.replace(/^POL-[A-Z]+:\s*\d+-[0-9A-Z\/]+-?\s*/i, '').trim();
-
-      // Multi-stage location detection
-      let districtInfo = detectDistrict(rawTitle, rawDesc);
-      if (!districtInfo.lat) {
-        const aiInfo = await extractLocationViaAI(rawTitle, rawDesc);
-        if (aiInfo && aiInfo.lat) {
-          districtInfo = aiInfo;
-        }
-      }
-      const category = detectCategory(rawTitle, rawDesc);
-      const isCritical = category === 'critical' || rawTitle.includes('Schüsse') || rawTitle.includes('Zeugen');
-
-      const id = guid.split('/').pop() || `pol-${Date.parse(pubDate)}-${Math.floor(Math.random()*1000)}`;
-
-      emergencies.push({
-        id,
+    const [policeResult, fireResult] = await Promise.allSettled([
+      fetchAndParseFeed({
+        url: 'https://www.presseportal.de/rss/dienststelle_12415.rss2',
         source: 'Polizei Köln',
-        category,
-        title: cleanTitle || rawTitle,
-        district: districtInfo.name,
-        lat: districtInfo.lat,
-        lng: districtInfo.lng,
-        hasExactCoordinates: !!districtInfo.lat,
-        pubDate: new Date(pubDate).toISOString(),
-        timeAgo: formatTimeAgo(pubDate),
-        description: rawDesc,
-        link,
-        isCritical
-      });
+        category: null, // keyword-detected per item
+        titlePrefixPattern: /^POL-[A-Z]+:\s*\d+-[0-9A-Z\/]+-?\s*/i,
+        idPrefix: 'pol'
+      }),
+      fetchAndParseFeed({
+        url: 'https://www.presseportal.de/rss/dienststelle_115889.rss2',
+        source: 'Feuerwehr Köln',
+        category: 'fire',
+        titlePrefixPattern: /^FW\s+K[öo]ln:\s*/i,
+        idPrefix: 'fw'
+      })
+    ]);
+
+    // If BOTH feeds failed, there's nothing live to show - fall through
+    // to the SQLite fallback below like before. If only one failed, the
+    // other's real data still gets through instead of losing everything.
+    if (policeResult.status === 'rejected' && fireResult.status === 'rejected') {
+      throw policeResult.reason;
     }
+
+    const emergencies = [
+      ...(policeResult.status === 'fulfilled' ? policeResult.value : []),
+      ...(fireResult.status === 'fulfilled' ? fireResult.value : [])
+    ];
+    if (policeResult.status === 'rejected') console.error('Polizei Köln feed failed:', policeResult.reason?.message);
+    if (fireResult.status === 'rejected') console.error('Feuerwehr Köln feed failed:', fireResult.reason?.message);
 
     // Save to SQLite
     if (emergencies.length > 0) {

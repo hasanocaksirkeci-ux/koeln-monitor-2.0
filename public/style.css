@@ -201,6 +201,21 @@ button svg { pointer-events: none; }
   box-shadow: var(--shadow-lg), var(--inner-bevel);
 }
 
+/* .glass-panel is meant for genuine top-level floating chrome (HUD,
+   drawers, modals) sitting directly over the map. Every list-row/card use
+   inside app.js is nested INSIDE the already-blurred sidebar though - a
+   second backdrop-filter there just stacks translucency and reads as a
+   muddier, more saturated (in practice: distinctly bluer) card than its
+   neutral-gray surroundings. Same fix already applied to .bento-card
+   etc. earlier: no second blur, just a neutral wash. */
+.glass-panel.nested {
+  background: var(--glass-chip-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: var(--glass-chip-border);
+  box-shadow: none;
+}
+
 /* ============================================== -->
    MAP-FIRST LAYOUT
    Fullscreen map as fixed background (z-index 0); nav, sidebar and every
