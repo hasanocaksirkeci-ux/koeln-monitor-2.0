@@ -472,36 +472,51 @@ export function getLineTracks(mode = 'all') {
 }
 
 /**
- * Helper to slice track coordinates between two stations along a track line
+ * Helper to slice track coordinates between two stations along a track line.
+ *
+ * Some lines' track data is an out-and-back polyline (e.g. Linie 18 runs
+ * Köln <-> Bonn Hbf, and the recorded track includes both the outbound and
+ * return pass), so a station can appear as TWO separate clusters of points
+ * in `track.coordinates` - once per pass. Picking each station's globally
+ * nearest point independently (old approach) could pair up mismatched
+ * occurrences from different passes and slice through the entire detour
+ * between them (observed: Ebertplatz -> Neumarkt drawing a huge loop all
+ * the way down to Bonn and back). Instead, collect every plausible match
+ * for each station and choose the pair with the smallest index span - the
+ * shortest, most local ride, which is what an actual transit leg is.
  */
 function sliceTrackBetween(track, stationA, stationB) {
   if (!track || !track.coordinates || track.coordinates.length < 2) return null;
-  let startIdx = -1;
-  let endIdx = -1;
-  let minStartDist = Infinity;
-  let minEndDist = Infinity;
+  const THRESHOLD = 0.008; // ~700-900m, tight enough to mean "at this station"
 
+  const candidatesA = [];
+  const candidatesB = [];
   for (let i = 0; i < track.coordinates.length; i++) {
     const [cLat, cLng] = track.coordinates[i];
-    const dStart = Math.hypot(cLat - stationA.lat, cLng - stationA.lng);
-    const dEnd = Math.hypot(cLat - stationB.lat, cLng - stationB.lng);
-    if (dStart < minStartDist) {
-      minStartDist = dStart;
-      startIdx = i;
-    }
-    if (dEnd < minEndDist) {
-      minEndDist = dEnd;
-      endIdx = i;
-    }
+    if (Math.hypot(cLat - stationA.lat, cLng - stationA.lng) < THRESHOLD) candidatesA.push(i);
+    if (Math.hypot(cLat - stationB.lat, cLng - stationB.lng) < THRESHOLD) candidatesB.push(i);
   }
+  if (candidatesA.length === 0 || candidatesB.length === 0) return null;
 
-  if (minStartDist < 0.025 && minEndDist < 0.025 && startIdx !== -1 && endIdx !== -1) {
-    if (startIdx === endIdx) return [track.coordinates[startIdx]];
-    return startIdx < endIdx 
-      ? track.coordinates.slice(startIdx, endIdx + 1)
-      : track.coordinates.slice(endIdx, startIdx + 1).reverse();
+  let startIdx = -1;
+  let endIdx = -1;
+  let bestSpan = Infinity;
+  for (const i of candidatesA) {
+    for (const j of candidatesB) {
+      const span = Math.abs(i - j);
+      if (span < bestSpan) {
+        bestSpan = span;
+        startIdx = i;
+        endIdx = j;
+      }
+    }
   }
-  return null;
+  if (startIdx === -1 || endIdx === -1) return null;
+
+  if (startIdx === endIdx) return [track.coordinates[startIdx]];
+  return startIdx < endIdx
+    ? track.coordinates.slice(startIdx, endIdx + 1)
+    : track.coordinates.slice(endIdx, startIdx + 1).reverse();
 }
 
 /**

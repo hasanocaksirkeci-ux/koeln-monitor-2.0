@@ -125,6 +125,14 @@ html, body {
   overflow: hidden;
   font-family: var(--font-main);
   background-color: var(--bg-canvas);
+  /* A flat solid fill reads visibly darker/flatter than the actual
+     basemap tiles (which carry light-colored roads/labels on the same
+     dark fill) - this faint grid hints at that texture so the space
+     behind the widened Home dashboard, where the map itself is no
+     longer visible, doesn't look like a different, darker page. */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0px, rgba(255, 255, 255, 0.035) 1px, transparent 1px, transparent 72px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0px, rgba(255, 255, 255, 0.035) 1px, transparent 1px, transparent 72px);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -347,8 +355,8 @@ button svg { pointer-events: none; }
 
 .rail-badge-alert {
   position: absolute;
-  top: -3px;
-  right: -3px;
+  top: 1px;
+  right: 2px;
   background: var(--vexto-rose);
   color: #fff;
   font-size: 0.6rem;
@@ -449,7 +457,7 @@ button svg { pointer-events: none; }
    up when it shrinks to a preview card (see .map-stage.home-dimmed). */
 @media (min-width: 901px) {
   .dashboard-sidebar.home-expanded {
-    width: calc(100% - 420px - 48px);
+    width: calc(100% - 560px - 48px);
   }
 
   /* Reflows the same 4 existing blocks (no HTML change) into a real
@@ -642,6 +650,40 @@ button svg { pointer-events: none; }
 /* .badge-tag had no rule at all - rendered as bare unstyled text next to
    the polished .data-status-badge pills (pegel-trend-badge, weather value
    in the Widgets tab), which read as broken/unfinished by comparison. */
+/* .dock-badge-alert / .preset-btn had no rules at all before - rendered
+   as unstyled default browser rectangles ("amateurhaft", especially
+   visible in light mode where there's no dark background to hide the
+   missing styling behind). */
+.dock-badge-alert {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  background: var(--glass-chip-bg);
+  border: 1px solid var(--glass-chip-border);
+  color: var(--text-secondary);
+}
+
+.preset-btn {
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--glass-chip-bg);
+  border: 1px solid var(--glass-chip-border);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.preset-btn:hover {
+  background: var(--glass-chip-bg-hover);
+  color: var(--text-primary);
+}
+
 .badge-tag {
   display: inline-flex;
   align-items: center;
@@ -1254,15 +1296,10 @@ button svg { pointer-events: none; }
     height var(--transition-smooth), border-radius var(--transition-smooth);
 }
 
-/* Home tab is a curated welcome screen, not the operations cockpit - the
-   live traffic map recedes into ambient chrome instead of competing with
-   it for attention: dimmed everywhere, and on desktop shrunk down to a
-   small preview card so the dashboard itself can actually widen into the
+/* Home tab is a curated welcome screen, not the operations cockpit - on
+   desktop the map shrinks down to a plain, sharp preview card (no blur/
+   dim - a blurred map serves no one) so the dashboard can widen into the
    freed-up space (see .dashboard-sidebar.home-expanded below). */
-.map-stage.home-dimmed {
-  filter: saturate(55%) brightness(55%) blur(1.5px);
-}
-
 @media (min-width: 901px) {
   .map-stage.home-dimmed {
     inset: auto;
@@ -1270,8 +1307,8 @@ button svg { pointer-events: none; }
     right: 16px;
     left: auto;
     bottom: auto;
-    width: 420px;
-    height: 220px;
+    width: 560px;
+    height: 320px;
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg), var(--inner-bevel);
     border: 1px solid var(--border-medium);
@@ -1279,16 +1316,23 @@ button svg { pointer-events: none; }
   }
 }
 
-/* On the small preview card, map controls (layers, transit HUD, AI
-   floating button, zoom) have nothing sensible to control - it's a
-   glance, not the operations view. Same sibling-selector pattern already
+/* On the small preview card this is a plain glance at the city, not the
+   operations view: no controls (layers, transit HUD, AI button, zoom)
+   and no live overlays (tracks/stations/vehicles/emergencies panes,
+   plus the default marker pane bikes/parking/pegel pins would use if
+   the user had those layers on). Same sibling-selector pattern already
    used for the mobile-open drawer state. */
 .dashboard-sidebar.home-expanded ~ .map-stage .map-floating-ribbon,
 .dashboard-sidebar.home-expanded ~ .map-stage .transit-hud-bar,
 .dashboard-sidebar.home-expanded ~ .map-stage .map-ai-trigger-btn,
 .dashboard-sidebar.home-expanded ~ .map-stage .cockpit-hud,
 .dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-zoom,
-.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-attribution {
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-control-attribution,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-tracks-pane,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-stations-pane,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-vehicles-pane,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-emergencies-pane,
+.dashboard-sidebar.home-expanded ~ .map-stage .leaflet-marker-pane {
   display: none;
 }
 
@@ -1306,9 +1350,9 @@ button svg { pointer-events: none; }
   .dashboard-sidebar.home-expanded ~ .home-weather-card {
     display: flex;
     position: fixed;
-    top: calc(96px + 220px + 12px);
+    top: calc(96px + 320px + 12px);
     right: 16px;
-    width: 420px;
+    width: 560px;
     height: 56px;
     background: var(--bg-glass-strong);
     backdrop-filter: var(--glass-blur);
@@ -1322,10 +1366,10 @@ button svg { pointer-events: none; }
   .dashboard-sidebar.home-expanded ~ .home-disruptions-card {
     display: flex;
     position: fixed;
-    top: calc(96px + 220px + 12px + 56px + 12px);
+    top: calc(96px + 320px + 12px + 56px + 12px);
     right: 16px;
     bottom: 16px;
-    width: 420px;
+    width: 560px;
     background: var(--bg-glass-strong);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);

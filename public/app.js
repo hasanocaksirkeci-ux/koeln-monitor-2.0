@@ -1598,14 +1598,17 @@ function renderEmergenciesList() {
     return;
   }
 
+  // Title leads the card - the source attribution ("Polizei Köln" /
+  // "Feuerwehr") is provenance, not the headline, so it moved into the
+  // secondary meta row instead of being the first thing shown.
   container.innerHTML = filtered.map(em => `
     <div class="glass-panel p-4" style="cursor:pointer;" onclick="window.appOpenEmergency('${em.id}')">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h4 style="font-weight:700; font-size:0.95rem;">${escapeHtml(em.title)}</h4>
+      <div class="mt-2" style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
         <span class="dock-badge-alert">${em.category === 'fire' ? 'Feuerwehr' : 'Polizei Köln'}</span>
         <span class="text-muted mono" style="font-size:0.75rem;">${em.timeAgo || 'heute'}</span>
       </div>
-      <h4 class="mt-2" style="font-weight:700; font-size:0.95rem;">${escapeHtml(em.title)}</h4>
-      <div class="mt-4" style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="mt-3" style="display:flex; justify-content:space-between; align-items:center;">
         <span class="text-muted" style="font-size:0.75rem;">Veedel: <b style="color:var(--text-primary);">${em.district || 'Köln'}</b></span>
         <span class="action-btn secondary small" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Details ➔</span>
       </div>
@@ -3069,7 +3072,7 @@ function renderEventCards(events) {
     const timeLabel = ev.time || start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
     const routeButton = ev.nearestStation
-      ? `<button class="pill-btn mt-2" data-route-to-station="${escapeHtml(ev.nearestStation.name)}">➔ Route ab ${escapeHtml(ev.nearestStation.short)} (${ev.nearestStation.distanceMeters}m)</button>`
+      ? `<button class="pill-btn" data-route-to-station="${escapeHtml(ev.nearestStation.name)}">➔ Route ab ${escapeHtml(ev.nearestStation.short)} (${ev.nearestStation.distanceMeters}m)</button>`
       : '';
 
     const disruptionWarning = ev.nearestStation && (ev.nearestStation.lines || []).some(l => disruptedLines.has(String(l)))
@@ -3086,12 +3089,28 @@ function renderEventCards(events) {
           ${dateLabel}${timeLabel ? ' · ' + escapeHtml(timeLabel) : ''}${ev.venue ? ' · ' + escapeHtml(ev.venue) : ''}
         </div>
         ${ev.district ? `<div class="text-muted" style="font-size:0.7rem;">${escapeHtml(ev.district)}</div>` : ''}
+        ${formatEventAddress(ev) ? `<div class="text-muted" style="font-size:0.7rem; margin-top:2px;">📍 ${escapeHtml(formatEventAddress(ev))}</div>` : ''}
+        ${ev.description ? `<div class="text-secondary" style="font-size:0.75rem; margin-top:6px; line-height:1.4;">${escapeHtml(truncateText(ev.description, 160))}</div>` : ''}
         ${ev.publicTransportHint ? `<div style="font-size:0.7rem; margin-top:4px;">🚆 ${escapeHtml(ev.publicTransportHint)}</div>` : ''}
-        ${routeButton}
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.4rem;">
+          ${routeButton}
+          ${ev.link ? `<a href="${escapeHtml(ev.link)}" target="_blank" rel="noopener" class="pill-btn" style="text-decoration:none;">Mehr erfahren ↗</a>` : ''}
+        </div>
         ${disruptionWarning}
       </div>
     `;
   }).join('');
+}
+
+// Some city events (e.g. Bauleitplanung-Bekanntmachungen) name a subject
+// location in the title ("... in Köln-Ehrenfeld") that differs from the
+// actual venue address (e.g. a Stadtplanungsamt office elsewhere) - the
+// route button targets the real venue coordinates, so the address is
+// shown explicitly next to it instead of leaving that mismatch unexplained.
+function formatEventAddress(ev) {
+  const streetPart = ev.street ? `${ev.street}${ev.houseNumber ? ' ' + ev.houseNumber : ''}` : '';
+  const cityPart = [ev.zip, ev.city].filter(Boolean).join(' ');
+  return [streetPart, cityPart].filter(Boolean).join(', ');
 }
 
 // Turns "in wie viel Zeit beginnt das?" into a short live label instead of
@@ -3125,7 +3144,10 @@ function renderHomeEventPreview(events) {
   const heroStart = new Date(hero.startIso);
   const heroDateLabel = heroStart.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
   const heroRouteButton = hero.nearestStation
-    ? `<button class="pill-btn mt-2" data-route-to-station="${escapeHtml(hero.nearestStation.name)}">➔ Route ab ${escapeHtml(hero.nearestStation.short)} (${hero.nearestStation.distanceMeters}m)</button>`
+    ? `<button class="pill-btn" data-route-to-station="${escapeHtml(hero.nearestStation.name)}">➔ Route ab ${escapeHtml(hero.nearestStation.short)} (${hero.nearestStation.distanceMeters}m)</button>`
+    : '';
+  const heroLink = hero.link
+    ? `<a href="${escapeHtml(hero.link)}" target="_blank" rel="noopener" class="pill-btn" style="text-decoration:none;">Mehr erfahren ↗</a>`
     : '';
 
   heroEl.innerHTML = `
@@ -3136,7 +3158,11 @@ function renderHomeEventPreview(events) {
         <div class="text-muted" style="font-size:0.75rem; margin-top:2px;">
           ${heroDateLabel}${hero.time ? ' · ' + escapeHtml(hero.time) : ''}${hero.venue ? ' · ' + escapeHtml(hero.venue) : ''}
         </div>
-        ${heroRouteButton}
+        ${formatEventAddress(hero) ? `<div class="text-muted" style="font-size:0.7rem;">📍 ${escapeHtml(formatEventAddress(hero))}</div>` : ''}
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.4rem;">
+          ${heroRouteButton}
+          ${heroLink}
+        </div>
       </div>
     </div>
   `;
@@ -3855,6 +3881,12 @@ function initSwipeGestures() {
     const el = document.getElementById('map-ai-panel');
     if (el) el.style.display = 'none';
   });
+}
+
+function truncateText(str, maxLen) {
+  if (!str) return '';
+  const s = String(str).trim();
+  return s.length > maxLen ? s.slice(0, maxLen).trimEnd() + '…' : s;
 }
 
 function escapeHtml(str) {
