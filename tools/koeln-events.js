@@ -19,6 +19,28 @@ function parseIsoDate(dateStr) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+// The feed has no category field at all (verified against the live JSON -
+// every row has the same flat shape), and the source API's own `kat`
+// query parameter returns an empty body for every value tried (numeric
+// IDs and German category names alike) - so filtering has to happen on
+// the event's own text, not on API metadata that doesn't exist. Stadt
+// Köln mixes real public events into the same feed as administrative
+// planning notices ("Bauleitplanung" / Bebauungsplan-Offenlage), which
+// read like an event ("Max Becker-Areal in Köln-Ehrenfeld", office hours
+// as its "Uhrzeit") but are really "come view documents and file an
+// objection" - not something matching "was ist heute los in Köln".
+// These use consistent official terminology; matched against 525 live
+// events across a 180-day window, this caught the one real notice with
+// no false positives (checked venue-based heuristics too - "Amt" alone
+// false-positives on genuine venues like "Amt für Weiterbildung/Kölner
+// Volkshochschule", so this stays text-only).
+const ADMINISTRATIVE_NOTICE_PATTERN =
+  /bebauungsplan|bekanntmachung|offenlage|offenlegung|satzung|stellungnahme|bauleitplan/i;
+
+function isAdministrativeNotice(row) {
+  return ADMINISTRATIVE_NOTICE_PATTERN.test(`${row.title || ''} ${row.description || ''}`);
+}
+
 function toNumberOrNull(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
@@ -61,6 +83,9 @@ export async function fetchColognEvents({ ndays = 14, kat } = {}) {
     // event card - skip it rather than rendering "undefined" / a
     // fabricated placeholder date.
     if (!title || !startIso) continue;
+    // Administrative planning notice, not a public event - see
+    // ADMINISTRATIVE_NOTICE_PATTERN above for why this is filtered here.
+    if (isAdministrativeNotice(row)) continue;
 
     const lat = toNumberOrNull(row.latitude);
     const lng = toNumberOrNull(row.longitude);
