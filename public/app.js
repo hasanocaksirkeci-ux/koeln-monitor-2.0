@@ -394,6 +394,14 @@ const HOME_WIDGET_DEFAULTS = {
   'disruptions': { x: 434, y: 402, w: 420, h: 302 }
 };
 const HOME_LAYOUT_STORAGE_KEY = 'koeln_home_dashboard_layout_v1';
+// The full intended height of the two-column default layout (bottom edge of
+// its tallest column). Used to scale the whole dashboard down when the
+// canvas is shorter than this - a fixed reference point, not derived from
+// whatever is currently on screen, so repeated applies can't compound into
+// runaway shrinking (see applyHomeLayout()).
+const HOME_LAYOUT_DEFAULT_HEIGHT = Math.max(
+  ...Object.values(HOME_WIDGET_DEFAULTS).map(pos => pos.y + pos.h)
+);
 
 const BASEMAPS = {
   dark: {
@@ -626,6 +634,15 @@ function switchTab(tabId) {
     }, 100);
   } else if (tabId === 'home') {
     loadEvents();
+    // .home-expanded (just toggled above) changes the sidebar's own size,
+    // which changes the dashboard canvas's clientHeight - re-apply the
+    // layout now that it has its real, expanded dimensions, not the ones
+    // from whenever initHomeDashboard() last measured it (otherwise the
+    // fit-to-canvas scaling in applyHomeLayout() uses a stale height and
+    // widgets can end up slightly taller than the actual canvas).
+    if (typeof applyHomeLayout === 'function' && state.homeDashboardLayout) {
+      setTimeout(() => applyHomeLayout(state.homeDashboardLayout), 50);
+    }
     if (state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
   } else if (tabId === 'departures') {
     fetchDepartures(state.activeStation.id);
@@ -3289,6 +3306,17 @@ function applyHomeLayout(layout) {
   // and overflowing a narrow mobile viewport - so on mobile these inline
   // styles are cleared instead of set.
   const desktop = window.innerWidth > 900;
+  const canvas = document.getElementById('sidebar-feed-home');
+  // At shorter window heights the canvas can be shorter than the default
+  // layout's full height, leaving no room for widgets to land when pushed
+  // downward. Scale the whole dashboard (y position + height) down to fit -
+  // relative to the fixed default height, not the current canvas content,
+  // so this can't compound into ever-shrinking widgets across repeated
+  // applies (reload, reset, breakpoint crossing).
+  const availableHeight = canvas ? canvas.clientHeight : 0;
+  const scale = availableHeight > 0
+    ? Math.min(1, availableHeight / HOME_LAYOUT_DEFAULT_HEIGHT)
+    : 1;
   document.querySelectorAll('.dash-widget').forEach(widget => {
     if (!desktop) {
       widget.style.left = '';
@@ -3301,9 +3329,9 @@ function applyHomeLayout(layout) {
     const pos = layout[id] || HOME_WIDGET_DEFAULTS[id];
     if (!pos) return;
     widget.style.left = pos.x + 'px';
-    widget.style.top = pos.y + 'px';
+    widget.style.top = Math.round(pos.y * scale) + 'px';
     widget.style.width = pos.w + 'px';
-    widget.style.height = pos.h + 'px';
+    widget.style.height = Math.round(pos.h * scale) + 'px';
   });
 }
 
@@ -3312,12 +3340,14 @@ function initHomeDashboard() {
   if (!canvas) return;
 
   let layout = loadHomeLayout();
+  state.homeDashboardLayout = layout;
   applyHomeLayout(layout);
 
   const resetBtn = document.getElementById('home-reset-layout-btn');
   if (resetBtn) {
     resetBtn.addEventListener('click', () => {
       layout = { ...HOME_WIDGET_DEFAULTS };
+      state.homeDashboardLayout = layout;
       saveHomeLayout(layout);
       applyHomeLayout(layout);
       if (state.homeMinimap) setTimeout(() => state.homeMinimap.invalidateSize(), 50);
