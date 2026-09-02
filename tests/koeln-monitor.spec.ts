@@ -11,7 +11,8 @@ test.describe('App Shell & Navigation', () => {
 
   test('renders title and header correctly', async ({ page }) => {
     await expect(page).toHaveTitle(/Köln Live-Monitor/);
-    await expect(page.locator('.app-title, h1').first()).toContainText('Köln');
+    // Actual header title element is .sidebar-main-title (h2), not .app-title/h1
+    await expect(page.locator('.sidebar-main-title').first()).toContainText(/köln/i);
   });
 
   test('shows Live vehicle count badge in header', async ({ page }) => {
@@ -63,7 +64,8 @@ test.describe('App Shell & Navigation', () => {
   });
 
   test('dark mode toggle switches theme', async ({ page }) => {
-    const themeToggle = page.locator('#theme-toggle, button[title*="Modus"], button[title*="Hell"], button[title*="Dunkel"]').first();
+    // Actual id from index.html: #theme-toggle-btn
+    const themeToggle = page.locator('#theme-toggle-btn');
     await expect(themeToggle).toBeVisible({ timeout: 5000 });
   });
 });
@@ -72,45 +74,55 @@ test.describe('App Shell & Navigation', () => {
 test.describe('Live-Karte & Basemap-Ansichten', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+    // Home is the default landing tab (.map-stage carries .home-hidden
+    // until the Radar tab is opened) - the map toolbar these tests target
+    // doesn't exist in a clickable state until then.
+    await page.click('#tab-btn-map');
+    await page.waitForTimeout(300);
   });
 
   test('Dunkel (Dark Canvas) tile is default and watermark-free', async ({ page }) => {
-    await expect(page.locator('#mm-dark')).toHaveClass(/active/);
+    // Actual ids from index.html: #mode-btn-dark/light/satellite, not #mm-*
+    await expect(page.locator('#mode-btn-dark')).toHaveClass(/active/);
     const html = await page.content();
     expect(html).not.toContain('API KEY REQUIRED');
     expect(html).not.toContain('carto.com/basemaps/apikey');
   });
 
   test('switches to Hell (OpenStreetMap) mode', async ({ page }) => {
-    await page.click('#mm-light');
+    await page.click('#mode-btn-light');
     await page.waitForTimeout(600);
-    await expect(page.locator('#mm-light')).toHaveClass(/active/);
+    await expect(page.locator('#mode-btn-light')).toHaveClass(/active/);
   });
 
   test('switches to Satellit (Esri Imagery) mode and loads imagery tiles', async ({ page }) => {
-    await page.click('#mm-satellite');
+    await page.click('#mode-btn-satellite');
     await page.waitForTimeout(1500);
-    await expect(page.locator('#mm-satellite')).toHaveClass(/active/);
-    // Satellite tile images from Esri should appear
-    const tileImgs = page.locator('img[src*="World_Imagery"], img[src*="arcgisonline"]');
+    await expect(page.locator('#mode-btn-satellite')).toHaveClass(/active/);
+    // Satellite tile images from Esri should appear. Scoped to
+    // World_Imagery specifically (not the broader "arcgisonline" host,
+    // which the previous Dark Canvas basemap's own tiles also match and
+    // can leave behind as hidden leftover <img> elements in the DOM).
+    const tileImgs = page.locator('img[src*="World_Imagery"]');
     await expect(tileImgs.first()).toBeVisible({ timeout: 6000 });
   });
 
-  test('switches to 3D Drohnen-Ansicht and applies tilt class', async ({ page }) => {
-    await page.click('#mm-3d');
-    await page.waitForTimeout(600);
-    await expect(page.locator('#mm-3d')).toHaveClass(/active/);
-    const mapEl = page.locator('#leaflet-map');
-    await expect(mapEl).toHaveClass(/mode-3d/);
-  });
+  // The "3D Drohnen-Ansicht" mode this test targeted (#mm-3d / .mode-3d) no
+  // longer exists anywhere in app.js or index.html - the map switcher was
+  // consolidated to a 3-way Dunkel/Hell/Satellit control (still labelled
+  // "2D/3D" only in the Radar tab's tooltip text). Removed rather than
+  // pointed at fabricated markup for a feature that isn't actually there.
 
   test('GPS button is visible on the map toolbar', async ({ page }) => {
-    const gpsBtn = page.locator('#gps-track-btn, #gps-btn, button:has-text("GPS")').first();
+    // Real, unique id - the old combined selector could match the
+    // basemap satellite button too (its title also contains "GPS").
+    const gpsBtn = page.locator('#gps-track-btn');
     await expect(gpsBtn).toBeVisible({ timeout: 5000 });
   });
 
   test('Zentrum button is visible and clickable', async ({ page }) => {
-    const zentrumBtn = page.locator('button:has-text("Zentrum")');
+    // Button text is "Köln" (title="Köln Zentrum zentrieren"), not "Zentrum"
+    const zentrumBtn = page.locator('#center-cologne-btn');
     await expect(zentrumBtn).toBeVisible();
     await zentrumBtn.click();
     await page.waitForTimeout(500);
@@ -150,24 +162,28 @@ test.describe('Abfahrtstafel (Live-Departures)', () => {
     expect(badgeText?.trim()).toBeTruthy();
     expect(badgeText).not.toContain('undefined');
 
-    const destText = await rows.first().locator('.col-dest-text').textContent();
+    // Destination/time sit in plain unstyled <div>s (no .col-dest-text /
+    // .dfi-matrix-time class exists) inside the 2nd/4th <td> - see
+    // renderDeparturesTable() in app.js.
+    const destText = await rows.first().locator('td').nth(1).locator('div').first().textContent();
     expect(destText?.trim()).toBeTruthy();
     expect(destText).not.toContain('undefined');
 
-    const timeText = await rows.first().locator('.dfi-matrix-time').textContent();
+    const timeText = await rows.first().locator('td').nth(3).locator('div').first().textContent();
     expect(timeText?.trim()).toBeTruthy();
     expect(timeText).not.toContain('undefined');
   });
 
   test('Schnellwahl chips are rendered dynamically by JS', async ({ page }) => {
-    const chips = page.locator('#favorites-list .fav-chip');
+    // renderFavoritesList() renders plain .action-btn buttons, not .fav-chip
+    const chips = page.locator('#favorites-list .action-btn');
     await expect(chips.first()).toBeVisible({ timeout: 8000 });
     const count = await chips.count();
     expect(count).toBeGreaterThan(3);
   });
 
   test('clicking first Schnellwahl chip loads departures', async ({ page }) => {
-    const chips = page.locator('#favorites-list .fav-chip');
+    const chips = page.locator('#favorites-list .action-btn');
     await expect(chips.first()).toBeVisible({ timeout: 8000 });
     await chips.first().click();
     await page.waitForTimeout(4000);
@@ -176,27 +192,11 @@ test.describe('Abfahrtstafel (Live-Departures)', () => {
     await expect(page.locator('#departures-tbody tr').first()).toBeVisible();
   });
 
-  test('filter buttons work using data-filter attribute selectors', async ({ page }) => {
-    await page.waitForSelector('#departures-tbody tr', { timeout: 10000 });
-    const allCount = await page.locator('#departures-tbody tr').count();
-
-    await page.click('.filter-btn[data-filter="stadtbahn"]');
-    await page.waitForTimeout(400);
-    const stadtbahnCount = await page.locator('#departures-tbody tr').count();
-    expect(stadtbahnCount).toBeGreaterThanOrEqual(0);
-
-    await page.click('.filter-btn[data-filter="all"]');
-    await page.waitForTimeout(400);
-    const allCountAgain = await page.locator('#departures-tbody tr').count();
-    expect(allCountAgain).toBe(allCount);
-  });
-
-  test('live auto-refresh countdown text is shown', async ({ page }) => {
-    // #countdown-text shows "Aktualisierung in 30s"
-    const timerEl = page.locator('#countdown-text');
-    await expect(timerEl).toBeVisible({ timeout: 5000 });
-    await expect(timerEl).toContainText('Aktualisierung');
-  });
+  // "filter buttons work using data-filter attribute selectors" and "live
+  // auto-refresh countdown text is shown" removed: neither .filter-btn nor
+  // #countdown-text exist anywhere in index.html/app.js for the Abfahrten
+  // sidebar view (verified via grep) - both targeted UI that isn't there,
+  // not a stale selector for UI that is.
 
   test('station search data: /api/lines contains Friesenplatz (autocomplete source)', async ({ request }) => {
     // The autocomplete uses state.verifiedStations populated from /api/lines.
@@ -225,46 +225,40 @@ test.describe('Blaulicht-Monitor (Polizei & Feuerwehr)', () => {
   });
 
   test('shows Einsatzradar header text', async ({ page }) => {
-    await expect(page.locator('h2, h3').filter({ hasText: 'Einsatzradar' })).toBeVisible();
+    // Actual heading is "Blaulicht Einsatz-Feed" in a <span>, not an
+    // h2/h3 containing the word "Einsatzradar".
+    await expect(page.locator('.feed-section-title').filter({ hasText: 'Blaulicht Einsatz-Feed' })).toBeVisible();
   });
 
   test('renders emergency incident cards from live RSS feed', async ({ page }) => {
-    const cards = page.locator('.emergency-card');
+    // Cards use the shared .glass-panel.nested pattern, not a dedicated
+    // .emergency-card class - see renderEmergenciesList() in app.js.
+    const cards = page.locator('#emergencies-list .glass-panel');
     await expect(cards.first()).toBeVisible({ timeout: 8000 });
     expect(await cards.count()).toBeGreaterThan(0);
   });
 
   test('emergency cards have meaningful content (not empty)', async ({ page }) => {
-    const firstCard = page.locator('.emergency-card').first();
+    const firstCard = page.locator('#emergencies-list .glass-panel').first();
     await expect(firstCard).toBeVisible({ timeout: 8000 });
     const text = await firstCard.textContent();
     expect(text?.length).toBeGreaterThan(20);
   });
 
   test('category filter buttons work with data-em-cat selectors', async ({ page }) => {
-    await page.waitForSelector('.emergency-card', { timeout: 8000 });
+    await page.waitForSelector('#emergencies-list .glass-panel', { timeout: 8000 });
 
     // Use actual data-em-cat attribute from the HTML
     await page.click('[data-em-cat="police"]');
     await page.waitForTimeout(500);
     await page.click('[data-em-cat="all"]');
     await page.waitForTimeout(400);
-    await expect(page.locator('.emergency-card').first()).toBeVisible();
+    await expect(page.locator('#emergencies-list .glass-panel').first()).toBeVisible();
   });
 
-  test('search input filters emergency cards', async ({ page }) => {
-    await page.waitForSelector('.emergency-card', { timeout: 8000 });
-    const totalBefore = await page.locator('.emergency-card').count();
-
-    const searchInput = page.locator('input[placeholder*="durchsuchen"], #emergency-search').first();
-    await expect(searchInput).toBeVisible();
-    await searchInput.fill('Köln');
-    await page.waitForTimeout(500);
-
-    const totalAfter = await page.locator('.emergency-card').count();
-    expect(totalAfter).toBeGreaterThanOrEqual(0);
-    expect(totalAfter).toBeLessThanOrEqual(totalBefore);
-  });
+  // "search input filters emergency cards" removed: the Blaulicht feed has
+  // no search input at all (verified via grep of index.html) - only the
+  // data-em-cat category chips filter it.
 });
 
 // ─── SUITE 5: KVB-Rad / Nextbike ─────────────────────────────────────────────
@@ -284,24 +278,20 @@ test.describe('KVB-Rad Live-Verleihnetz', () => {
   });
 
   test('renders station list with bike availability badges', async ({ page }) => {
-    const stationCards = page.locator('.bike-station-card, .station-item');
+    // renderBikesList() uses the shared .glass-panel.nested pattern, not a
+    // dedicated .bike-station-card/.station-item class.
+    const stationCards = page.locator('#bikes-stations-grid .glass-panel');
     await expect(stationCards.first()).toBeVisible({ timeout: 8000 });
     expect(await stationCards.count()).toBeGreaterThan(10);
   });
 
-  test('station search filter is functional', async ({ page }) => {
-    const input = page.locator('input[placeholder*="Station"]');
-    await expect(input).toBeVisible({ timeout: 5000 });
-    await input.fill('KVB Hauptverwaltung');
-    await page.waitForTimeout(500);
-    const filtered = page.locator('.bike-station-card, .station-item');
-    expect(await filtered.count()).toBeGreaterThan(0);
-  });
+  // "station search filter is functional" removed: the KVB-Rad tab has no
+  // station search input at all (verified via grep of index.html/app.js) -
+  // that filtering feature doesn't exist in the current UI.
 
-  test('"Alle auf Karte anzeigen" button is visible', async ({ page }) => {
-    await expect(
-      page.locator('button:has-text("Karte anzeigen"), button:has-text("Alle auf Karte")')
-    ).toBeVisible();
+  test('"Auf Karte" button is visible', async ({ page }) => {
+    // Actual id/text: #show-bikes-on-map-btn / "Auf Karte"
+    await expect(page.locator('#show-bikes-on-map-btn')).toBeVisible();
   });
 });
 
@@ -438,19 +428,22 @@ test.describe('Routenplaner, Störungen & Widgets UI', () => {
     await page.click('#tab-btn-routes');
     await page.waitForTimeout(500);
     await page.click('#calculate-route-btn');
-    await expect(page.locator('.route-card').first()).toBeVisible({ timeout: 10000 });
+    // calculateKvbRoute() renders cards with the shared .glass-panel.nested
+    // pattern, not a dedicated .route-card class.
+    await expect(page.locator('#route-cards-list .glass-panel').first()).toBeVisible({ timeout: 10000 });
     const content = await page.locator('#route-cards-list').innerText();
     expect(content).not.toContain('undefined');
   });
 
   test('Störungen & SEV tab renders Stadtbahn and S-Bahn line cards', async ({ page }) => {
     await page.click('#tab-btn-disruptions');
-    await expect(page.locator('#stadtbahn-status-grid .line-status-card').first()).toBeVisible({ timeout: 6000 });
-    const stadtbahnCards = await page.locator('#stadtbahn-status-grid .line-status-card').count();
+    // Actual class from app.js is .disruption-card, not .line-status-card.
+    await expect(page.locator('#stadtbahn-status-grid .disruption-card').first()).toBeVisible({ timeout: 6000 });
+    const stadtbahnCards = await page.locator('#stadtbahn-status-grid .disruption-card').count();
     expect(stadtbahnCards).toBeGreaterThanOrEqual(10);
   });
 
-  test('Köln-Widgets renders Pegel, Weather, and Parking Garages', async ({ page }) => {
+  test('Köln-Widgets renders Pegel, Weather, and Parking free-spaces count', async ({ page }) => {
     await page.click('#tab-btn-widgets');
     await page.waitForTimeout(1000);
     const pegelText = await page.locator('#pegel-cm-val').innerText();
@@ -459,8 +452,10 @@ test.describe('Routenplaner, Störungen & Widgets UI', () => {
     expect(weatherTemp).not.toBe('--');
     const parkingFree = await page.locator('#parking-total-free').innerText();
     expect(parkingFree).not.toBe('--');
-    const garageCards = await page.locator('#parking-garages-grid .parking-card').count();
-    expect(garageCards).toBeGreaterThan(0);
+    // Individual per-garage cards (#parking-garages-grid) were never part
+    // of this UI - garages only ever appear as map markers, verified via
+    // grep of app.js/index.html. The aggregate free-spaces count above is
+    // the real, rendered data.
   });
 });
 
@@ -468,11 +463,12 @@ test.describe('Routenplaner, Störungen & Widgets UI', () => {
 test.describe('Köln AI City-Assistent & Vector Icons', () => {
   test('navigation bar uses 100% SVG vector icons with zero emojis', async ({ page }) => {
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-    const navHtml = await page.locator('.nav-tabs').innerHTML();
+    // Actual nav container class is .rail-nav, not .nav-tabs.
+    const navHtml = await page.locator('.rail-nav').innerHTML();
     const emojiRegex = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
     expect(emojiRegex.test(navHtml)).toBe(false);
-    
-    const svgIconsCount = await page.locator('.nav-tabs svg.v-icon').count();
+
+    const svgIconsCount = await page.locator('.rail-nav svg.v-icon').count();
     expect(svgIconsCount).toBeGreaterThanOrEqual(9);
   });
 
@@ -492,16 +488,18 @@ test.describe('Köln AI City-Assistent & Vector Icons', () => {
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
     await page.click('#tab-btn-ai');
     await page.waitForTimeout(500);
-    await expect(page.locator('#tab-ai')).toBeVisible();
+    // Actual panel id is #sidebar-feed-ai, not #tab-ai.
+    await expect(page.locator('#sidebar-feed-ai')).toBeVisible();
 
     // Click quick chip
     const quickChip = page.locator('.quick-chip').first();
     await expect(quickChip).toBeVisible();
     await quickChip.click();
 
-    // Wait for assistant response bubble
-    await expect(page.locator('.ai-message.assistant').nth(1)).toBeVisible({ timeout: 10000 });
-    const lastMsg = await page.locator('.ai-message.assistant').last().innerText();
+    // Wait for assistant response bubble - appendChatMessage() renders
+    // ".ai-msg bot-msg", not ".ai-message.assistant".
+    await expect(page.locator('.ai-msg.bot-msg').nth(1)).toBeVisible({ timeout: 10000 });
+    const lastMsg = await page.locator('.ai-msg.bot-msg').last().innerText();
     expect(lastMsg.length).toBeGreaterThan(15);
   });
 });
